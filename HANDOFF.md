@@ -85,3 +85,37 @@
 - **ESLint:** Pinned to v8 for Next.js 14 compatibility. Don't upgrade to v9+ without also upgrading Next.js.
 - **Login page:** After signup, the user is silently flipped back to the login form with no indication they need to check their email. A "Check your email" confirmation screen was attempted but reverted due to a UI issue — revisit in Phase 1.5.
 - **Old directory:** The `opportunity-graph-ui/` subdirectory was the original location before moving everything to repo root. It can be deleted if it still exists.
+
+---
+
+## Session 2 — bug fixes and scoring fix
+
+**Logout redirect** (`app/auth/logout/route.ts`)
+- Was redirecting to `process.env.NEXT_PUBLIC_SUPABASE_URL/login` (the Supabase dashboard) instead of the app's login page
+- Fixed: now accepts `request` param and redirects to `${origin}/login`
+
+**"Save" button on opportunity detail** (`components/save-button.tsx`, `app/opportunities/[slug]/page.tsx`)
+- Form was submitting `application/x-www-form-urlencoded` to an endpoint expecting JSON
+- Extracted a `SaveButton` client component that POSTs JSON via `fetch()`
+
+**Profile save error visibility** (`app/profile/page.tsx`, `app/api/profile/route.ts`)
+- API route's `DELETE` on `profile_nodes` had no error check — silent failures possible
+- Client had no error display when `matchedCount === 0`
+- Added `saveError` state to profile page showing unmatched names or API errors
+- Added `deleteError` check in API route
+- Response now includes `unmatchedNames` for debugging
+
+**RLS on reference tables** (run this SQL if not already done)
+```sql
+alter table graph_nodes disable row level security;
+alter table graph_edges disable row level security;
+alter table opportunity_nodes disable row level security;
+alter table sources disable row level security;
+alter table ingestion_logs disable row level security;
+```
+
+**Scoring scale fix** (`lib/constants.ts`, `app/opportunities/[slug]/page.tsx`)
+- `SCORE_MAX` changed from `{interest: 40, eligibility: 25, deadline: 15, experience: 10, popularity: 10}` to all `100`
+- Each component score now returns 0–100, weights produce a true 0–100 final score
+- Previously the theoretical max was ~27% — now a perfect match shows 100%
+- Detail page breakdown values scaled to match; total uses weighted formula instead of raw sum

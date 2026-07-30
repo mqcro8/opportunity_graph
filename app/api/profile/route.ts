@@ -43,7 +43,7 @@ export async function POST(request: Request) {
   }
 
   const body = await request.json();
-  const { full_name, current_grade, university_status, gpa, languages, goals, preferences, nodeIds } = body;
+  const { full_name, current_grade, university_status, gpa, languages, goals, preferences, interests } = body;
 
   const { error: profileError } = await supabase.from("profiles").upsert(
     {
@@ -64,23 +64,51 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: profileError.message }, { status: 500 });
   }
 
-  if (Array.isArray(nodeIds)) {
-    await supabase.from("profile_nodes").delete().eq("profile_id", user.id);
+  const nodeNames = [
+    ...(interests ?? []),
+    ...(languages ?? []),
+    ...(goals ?? []),
+  ];
 
-    if (nodeIds.length > 0) {
-      const { error: nodesError } = await supabase.from("profile_nodes").insert(
-        nodeIds.map((nodeId: string) => ({
-          profile_id: user.id,
-          node_id: nodeId,
-          source: "user_input",
-        }))
-      );
+  const { data: matchedNodes, error: graphError } = await supabase
+    .from("graph_nodes")
+    .select("id, name")
+    .in("name", nodeNames);
 
-      if (nodesError) {
-        return NextResponse.json({ error: nodesError.message }, { status: 500 });
-      }
+  if (graphError) {
+    return NextResponse.json({ error: graphError.message, nodeNames }, { status: 500 });
+  }
+
+  const { error: deleteError } = await supabase
+    .from("profile_nodes")
+    .delete()
+    .eq("profile_id", user.id);
+
+  if (deleteError) {
+    return NextResponse.json({ error: deleteError.message }, { status: 500 });
+  }
+
+  if (matchedNodes && matchedNodes.length > 0) {
+    const { error: nodesError } = await supabase.from("profile_nodes").insert(
+      matchedNodes.map((node) => ({
+        profile_id: user.id,
+        node_id: node.id,
+        source: "user_input",
+      }))
+    );
+
+    if (nodesError) {
+      return NextResponse.json({ error: nodesError.message, nodeNames, matchedNodes: matchedNodes.map(n => n.name) }, { status: 500 });
     }
   }
 
-  return NextResponse.json({ ok: true });
+  return NextResponse.json({
+    ok: true,
+    nodeNames,
+    matchedCount: matchedNodes?.length ?? 0,
+    matchedNames: matchedNodes?.map((n) => n.name) ?? [],
+    unmatchedNames: matchedNodes?.length === 0 && nodeNames.length > 0
+      ? nodeNames
+      : nodeNames.filter(n => !matchedNodes?.some(m => m.name === n)),
+  });
 }

@@ -1,9 +1,9 @@
 import { notFound, redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { buttonVariants } from "@/components/ui/button";
+import { SaveButton } from "@/components/save-button";
 import { ScoreBreakdown } from "@/components/score-breakdown";
 import { Badge } from "@/components/ui/badge";
-import { cn } from "@/lib/utils";
 import type { ScoredOpportunity } from "@/lib/types";
 
 export default async function OpportunityPage({
@@ -42,14 +42,20 @@ export default async function OpportunityPage({
     .filter(Boolean) as string[];
 
   const breakdown = {
-    interest: matchedNodes.length > 0 ? 30 : 10,
-    eligibility: 25,
-    deadline: 10,
-    experience: 5,
-    popularity: 5,
+    interest: matchedNodes.length > 0 ? 75 : 25,
+    eligibility: 100,
+    deadline: 67,
+    experience: 50,
+    popularity: 50,
   };
 
-  const total = Object.values(breakdown).reduce((a, b) => a + b, 0);
+  const total = Math.round(
+    breakdown.interest * 0.4 +
+    breakdown.eligibility * 0.25 +
+    breakdown.deadline * 0.15 +
+    breakdown.experience * 0.1 +
+    breakdown.popularity * 0.1
+  );
 
   const nodes = matchedNodes.join(", ");
   const explanation =
@@ -116,20 +122,7 @@ export default async function OpportunityPage({
         >
           Open application →
         </a>
-        <form
-          action="/api/interactions"
-          method="POST"
-          className="inline"
-        >
-          <input type="hidden" name="opportunity_id" value={opportunity.id} />
-          <input type="hidden" name="status" value="saved" />
-          <button
-            type="submit"
-            className={cn(buttonVariants({ variant: "outline" }))}
-          >
-            Save
-          </button>
-        </form>
+        <SaveButton opportunityId={opportunity.id} />
       </div>
     </div>
   );

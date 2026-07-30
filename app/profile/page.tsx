@@ -55,13 +55,6 @@ const GOAL_OPTIONS = [
   "Start a company",
 ];
 
-interface GraphNode {
-  id: string;
-  name: string;
-  slug: string;
-  type: string;
-}
-
 export default function ProfilePage() {
   const [step, setStep] = useState(0);
   const [grade, setGrade] = useState("");
@@ -71,7 +64,7 @@ export default function ProfilePage() {
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
-  const [graphNodes, setGraphNodes] = useState<GraphNode[]>([]);
+  const [saveError, setSaveError] = useState<string | null>(null);
   const router = useRouter();
 
   useEffect(() => {
@@ -86,13 +79,6 @@ export default function ProfilePage() {
       }
 
       setLoading(true);
-
-      const { data: nodes } = await supabase
-        .from("graph_nodes")
-        .select("id, name, slug, type")
-        .in("type", ["skill", "interest", "field", "language"]);
-
-      setGraphNodes(nodes ?? []);
 
       const { data: profile } = await supabase
         .from("profiles")
@@ -133,30 +119,40 @@ export default function ProfilePage() {
 
   async function handleSave() {
     setSaving(true);
-    const matchedNodeIds = graphNodes
-      .filter(
-        (n) =>
-          interests.includes(n.name) ||
-          languages.includes(n.name) ||
-          goals.includes(n.name)
-      )
-      .map((n) => n.id);
+    setSaveError(null);
 
     const res = await fetch("/api/profile", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         current_grade: grade,
+        interests,
         languages,
         goals,
-        nodeIds: matchedNodeIds,
       }),
     });
 
-    if (res.ok) {
-      setSaved(true);
-      setTimeout(() => router.push("/dashboard"), 1000);
+    const data = await res.json();
+
+    if (!res.ok) {
+      setSaveError(data.error ?? "Failed to save profile");
+      setSaving(false);
+      return;
     }
+
+    if (data.matchedCount === 0) {
+      const names = [interests, languages, goals].flat().filter(Boolean);
+      if (names.length > 0) {
+        setSaveError(
+          `None of your selections matched known graph nodes. Unmatched: ${names.join(", ")}`
+        );
+        setSaving(false);
+        return;
+      }
+    }
+
+    setSaved(true);
+    setTimeout(() => router.push("/dashboard"), 1000);
     setSaving(false);
   }
 
@@ -252,6 +248,12 @@ export default function ProfilePage() {
               );
             })}
           </div>
+        )}
+
+        {saveError && (
+          <p className="mb-4 rounded-md bg-destructive/10 p-3 text-center text-sm text-destructive">
+            {saveError}
+          </p>
         )}
 
         {saved ? (

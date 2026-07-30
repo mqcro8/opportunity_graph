@@ -32,15 +32,6 @@ export default async function DashboardPage() {
     );
   }
 
-  const res = await fetch(
-    `${process.env.NEXT_PUBLIC_SUPABASE_URL ? "" : ""}/api/recommendations`,
-    {
-      headers: {
-        cookie: "",
-      },
-    }
-  );
-
   const { data: profileNodes } = await supabase
     .from("profile_nodes")
     .select("node_id")
