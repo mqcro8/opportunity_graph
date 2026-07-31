@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/db";
 import { Button } from "@/components/ui/button";
@@ -14,6 +15,8 @@ export default function LoginPage() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [signedUp, setSignedUp] = useState(false);
+  const [ageConfirmed, setAgeConfirmed] = useState(false);
+  const [termsAccepted, setTermsAccepted] = useState(false);
   const router = useRouter();
   const supabase = createClient();
 
@@ -21,6 +24,14 @@ export default function LoginPage() {
     e.preventDefault();
     setLoading(true);
     setError(null);
+
+    if (isSignUp && (!ageConfirmed || !termsAccepted)) {
+      setError(
+        "Please confirm you're 13 or older and agree to the Terms of Service and Privacy Policy."
+      );
+      setLoading(false);
+      return;
+    }
 
     const { error: authError } = isSignUp
       ? await supabase.auth.signUp({ email, password })
@@ -117,7 +128,66 @@ export default function LoginPage() {
                 <p className="text-sm text-destructive">{error}</p>
               )}
 
-              <Button type="submit" className="w-full" disabled={loading}>
+              {isSignUp && (
+                <div className="space-y-3">
+                  <label
+                    htmlFor="age-confirmation"
+                    className="flex cursor-pointer items-start gap-2 text-xs leading-5 text-muted-foreground"
+                  >
+                    <input
+                      id="age-confirmation"
+                      type="checkbox"
+                      checked={ageConfirmed}
+                      onChange={(e) => setAgeConfirmed(e.target.checked)}
+                      className="mt-0.5 h-4 w-4 accent-foreground"
+                    />
+                    <span>
+                      I am{" "}
+                      <span className="font-medium text-foreground">
+                        13 years old or older
+                      </span>
+                      .
+                    </span>
+                  </label>
+                  <label
+                    htmlFor="terms-confirmation"
+                    className="flex cursor-pointer items-start gap-2 text-xs leading-5 text-muted-foreground"
+                  >
+                    <input
+                      id="terms-confirmation"
+                      type="checkbox"
+                      checked={termsAccepted}
+                      onChange={(e) => setTermsAccepted(e.target.checked)}
+                      className="mt-0.5 h-4 w-4 accent-foreground"
+                    />
+                    <span>
+                      I agree to the{" "}
+                      <Link
+                        href="/terms"
+                        onClick={(e) => e.stopPropagation()}
+                        className="text-foreground underline underline-offset-4 hover:text-muted-foreground"
+                      >
+                        Terms of Service
+                      </Link>{" "}
+                      and{" "}
+                      <Link
+                        href="/privacy"
+                        onClick={(e) => e.stopPropagation()}
+                        className="text-foreground underline underline-offset-4 hover:text-muted-foreground"
+                      >
+                        Privacy Policy
+                      </Link>
+                      .
+                    </span>
+                  </label>
+                </div>
+              )}
+
+              <Button
+                type="submit"
+                className="w-full"
+                disabled={loading || (isSignUp && (!ageConfirmed || !termsAccepted))}
+              >
                 {loading ? "..." : isSignUp ? "Sign up" : "Sign in"}
               </Button>
             </form>
@@ -131,6 +201,8 @@ export default function LoginPage() {
                 onClick={() => {
                   setIsSignUp(!isSignUp);
                   setError(null);
+                  setAgeConfirmed(false);
+                  setTermsAccepted(false);
                 }}
                 className="text-foreground underline underline-offset-4 hover:text-muted-foreground"
               >

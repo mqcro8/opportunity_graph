@@ -5,6 +5,14 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
+export function slugify(text: string): string {
+  return text
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "")
+    .slice(0, 100);
+}
+
 // Single deterministic path from a raw deadline to display label + urgency.
 // Computed once, not re-derived by parsing the formatted string back out.
 export function getDeadlineInfo(dateStr: string | null): { label: string; urgent: boolean } {

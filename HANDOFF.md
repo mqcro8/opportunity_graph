@@ -63,6 +63,7 @@
 - [ ] `GET /api/opportunities` list endpoint (currently only slug-based detail exists)
 - [ ] Dedup check at insert time (fuzzy match on title + organization)
 - [ ] Google sign-in/up — Enable Google provider in Supabase Auth dashboard, add OAuth button to login page via `supabase.auth.signInWithOAuth({ provider: 'google' })`
+- [ ] Source Directory on dashboard — Bottom-of-dashboard section listing all sources (name + link to `base_url` + tier badge + `last_run_at`). Copy: *"Don't see what you're looking for? Browse these official directories directly"*. Displays `description` column from the `sources` table — may need a migration to add it.
 
 **Phase 2 — scale and community**
 - [ ] Tier 2 community sources with stricter review
@@ -119,3 +120,83 @@ alter table ingestion_logs disable row level security;
 - Each component score now returns 0–100, weights produce a true 0–100 final score
 - Previously the theoretical max was ~27% — now a perfect match shows 100%
 - Detail page breakdown values scaled to match; total uses weighted formula instead of raw sum
+
+---
+
+## Session 3 — auto-linking, admin forms, and real ingestion
+
+**Auto-linking system** (`lib/linking.ts`)
+- Every opportunity now links to a category hub node (hackathons, scholarships, ...) plus any graph nodes matched from title/org/description via a word-boundary keyword map
+- `GOAL_NODE_MAP` — profile goals now resolve to real graph nodes, fixing "Join a hackathon" matching nothing
+- `linkOpportunityToNodes()` is used by BOTH the admin form and the ingestion pipeline — one linking path
+
+**Gemini extraction pipeline** (`lib/extraction.ts`)
+- `extractFromUrl()` / `extractFromHtml()` — fetch page → Gemini 2.5 Flash prompt → JSON → Zod validation (`response_mime_type: application/json`, temperature 0.1)
+- Added `description` field to the `ExtractedOpportunity` schema
+
+**Ingestion endpoint** (`app/api/ingest/[sourceId]/route.ts`)
+- GET + POST, protected by `CRON_SECRET` (query param `cron_secret` or header `x-cron-secret`); passes through when the env var is unset
+- Scrapes `scrape_config.urls` (falls back to `base_url`), inserts as `pending_review`, logs to `ingestion_logs`, updates `sources.last_run_at`
+- TESTED: MLH run produced 30 rows (data quality was poor — user deleted them manually, see Notes)
+
+**Admin** (gated by `ADMIN_EMAIL`)
+- `lib/admin.ts` `requireAdmin()` + middleware redirect for all `/admin/*`
+- `/admin` landing page, `/admin/opportunities/new` (full form incl. eligibility object; saves as `verified`; shows auto-linked nodes as badges), `/admin/sources/new`
+- `POST /api/admin/opportunities` (Zod-validated, slug dedup, verified + auto-link) and `POST /api/admin/sources`
+
+**Profile fix** (`app/api/profile/route.ts`)
+- Goals now map to nodes via `GOAL_NODE_MAP` instead of exact name matching (which matched nothing)
+
+**Migrations** (run in Supabase SQL editor)
+- `002_sources_description.sql` — `sources.description` column (for the Phase 1.5 Source Directory)
+- `003_category_nodes.sql` — 11 category hub nodes + backfill links for existing opportunities
+
+**Env vars** (`.env.local`)
+- `GEMINI_API_KEY` (from aistudio.google.com/apikey), `CRON_SECRET` (any random string), `ADMIN_EMAIL` (must equal your Supabase account email)
+
+**Shared util**
+- `slugify()` moved to `lib/utils.ts` (previously duplicated inline in the ingest route)
+
+**Notes / actions for next session**
+- Run migrations 002 + 003
+- Set `ADMIN_EMAIL` in `.env.local` before testing `/admin/*`
+- Re-save the profile once (`/profile`) so goal→node mapping applies
+- The 30 MLH-ingested rows were deleted manually (incomplete data); starting fresh with manually-input opportunities via the admin form
+- `eligibilityScore` currently always returns 100 — real profile-vs-opportunity matching is not wired yet
+- The `401` from `/api/ingest` was a missing `CRON_SECRET` env var, not a code bug
+
+---
+
+## Session 4 — legal pages, dark mode, consent, account deletion, and profile restructure
+
+**Legal pages** (`app/terms/page.tsx`, `app/privacy/page.tsx`, `components/markdown-page.tsx`)
+- Installed `react-markdown`; both pages read `TERMS_OF_SERVICE.md` / `PRIVACY_POLICY.md` from disk at build time via the shared `MarkdownPage` wrapper, styled with `.prose` rules in `globals.css`
+- ToS links to `/privacy` and Privacy links to `/terms`
+- The .md docs were updated in place: self-service account deletion documented in Privacy §6/§8 and ToS §4
+
+**Dark mode** (next-themes)
+- Installed `next-themes`; `components/theme-provider.tsx` wraps the app (`attribute="class" defaultTheme="system"`), `suppressHydrationWarning` on `<html>`
+- `components/theme-toggle.tsx` — Sun/Moon toggle in the nav
+- Home-page SVG got `dark:` fill/stroke variants; everything else was already token-based (`darkMode: "class"` + `.dark` vars pre-existed in `globals.css`)
+
+**Sign-up consent + account deletion**
+- Login page: two required checkboxes in sign-up mode — "13 years old or older" and ToS/Privacy acceptance (with links); submit disabled until both checked; states reset on mode switch
+- `DELETE /api/profile` — server-client auth check, then `admin.auth.admin.deleteUser(user.id)` via `createAdminClient()`; FK cascades wipe `profiles` / `profile_nodes` / `interactions`
+- Profile page: two-step "Delete account" danger zone below the onboarding card; on success signs out and redirects to `/`
+- Requires `SUPABASE_SERVICE_ROLE_KEY` in `.env.local`
+
+**Profile restructure** (full_name → display_name)
+- Migration `004_profile_display_name.sql` — `rename column full_name to display_name; drop column university_status;`
+- `POST /api/profile` accepts `display_name` (nullable) + `gpa`; no longer writes `university_status`
+- Grade step now has optional Nickname + GPA (0–4) inputs; both hydrate on load and save via `POST /api/profile`
+- Nav shows `display_name` instead of email (falls back to email)
+- `eligibilityScore` still a stub (always 100) — GPA is captured but not yet used in scoring
+
+**Sticky footer** (`app/layout.tsx`)
+- Body → `flex min-h-screen flex-col`; `<main>` → `flex-1` so the footer anchors to the bottom on short pages
+
+**Deps added:** react-markdown, next-themes
+
+**Actions for next session**
+- Run migration `004_profile_display_name.sql` in the Supabase SQL editor (renames `full_name`, drops `university_status`)
+- Full `full_name` was never shown anywhere; any pre-existing values now live under `display_name`

@@ -2,9 +2,19 @@ import { notFound, redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { buttonVariants } from "@/components/ui/button";
 import { SaveButton } from "@/components/save-button";
-import { ScoreBreakdown } from "@/components/score-breakdown";
+import { ScoreBreakdown as ScoreBreakdownUI } from "@/components/score-breakdown";
 import { Badge } from "@/components/ui/badge";
-import type { ScoredOpportunity } from "@/lib/types";
+import { expandGraph } from "@/lib/graph";
+import { explain } from "@/lib/explain";
+import {
+  interestScore,
+  eligibilityScore,
+  deadlineScore,
+  experienceScore,
+  popularityScore,
+  WEIGHTS,
+} from "@/lib/recommendations";
+import type { ScoredOpportunity, ScoreBreakdown } from "@/lib/types";
 
 export default async function OpportunityPage({
   params,
@@ -29,10 +39,45 @@ export default async function OpportunityPage({
 
   if (error || !opportunity) notFound();
 
-  const { data: oppNodes } = await supabase
+  const { data: profileNodes } = await supabase
+    .from("profile_nodes")
+    .select("node_id")
+    .eq("profile_id", user.id);
+
+  const profileNodeIds = (profileNodes ?? []).map((pn) => pn.node_id);
+
+  let profileNames: string[] = [];
+  let expandedNames: string[] = [];
+  let expandedNodeIds: string[] = [];
+
+  if (profileNodeIds.length > 0) {
+    const expansion = await expandGraph(profileNodeIds, { hops: 2 });
+    expandedNodeIds = expansion.expandedNodeIds;
+
+    const { data: pNames } = await supabase
+      .from("graph_nodes")
+      .select("name")
+      .in("id", profileNodeIds);
+
+    const { data: eNames } = await supabase
+      .from("graph_nodes")
+      .select("name")
+      .in("id", expandedNodeIds);
+
+    profileNames = (pNames ?? []).map((n) => n.name);
+    expandedNames = (eNames ?? []).map((n) => n.name);
+  }
+
+  const oppNodesQuery = supabase
     .from("opportunity_nodes")
     .select("relevance, graph_nodes(name, slug)")
     .eq("opportunity_id", opportunity.id);
+
+  if (expandedNodeIds.length > 0) {
+    oppNodesQuery.in("node_id", expandedNodeIds);
+  }
+
+  const { data: oppNodes } = await oppNodesQuery;
 
   const matchedNodes = (oppNodes ?? [])
     .map((on) => {
@@ -41,43 +86,47 @@ export default async function OpportunityPage({
     })
     .filter(Boolean) as string[];
 
-  const breakdown = {
-    interest: matchedNodes.length > 0 ? 75 : 25,
-    eligibility: 100,
-    deadline: 67,
-    experience: 50,
-    popularity: 50,
+  const breakdown: ScoreBreakdown = {
+    interest: interestScore(matchedNodes, profileNames, expandedNames),
+    eligibility: eligibilityScore(opportunity.eligibility),
+    deadline: deadlineScore(opportunity.application_deadline),
+    experience: experienceScore(),
+    popularity: popularityScore(),
   };
 
   const total = Math.round(
-    breakdown.interest * 0.4 +
-    breakdown.eligibility * 0.25 +
-    breakdown.deadline * 0.15 +
-    breakdown.experience * 0.1 +
-    breakdown.popularity * 0.1
+    breakdown.interest * WEIGHTS.interest +
+    breakdown.eligibility * WEIGHTS.eligibility +
+    breakdown.deadline * WEIGHTS.deadline +
+    breakdown.experience * WEIGHTS.experience +
+    breakdown.popularity * WEIGHTS.popularity
   );
 
-  const nodes = matchedNodes.join(", ");
-  const explanation =
-    matchedNodes.length > 0
-      ? `Because you're interested in ${nodes}, and this ${opportunity.opportunity_type.replace("_", " ")} accepts applicants matching your profile.`
-      : `This ${opportunity.opportunity_type.replace("_", " ")} matches your profile.`;
+  const oppShape = {
+    id: opportunity.id,
+    slug: opportunity.slug,
+    title: opportunity.title,
+    organization: opportunity.organization,
+    description: opportunity.description ?? "",
+    opportunityType: opportunity.opportunity_type as ScoredOpportunity["opportunity"]["opportunityType"],
+    applicationDeadline: opportunity.application_deadline,
+    country: opportunity.country,
+    deliveryMode: opportunity.delivery_mode as ScoredOpportunity["opportunity"]["deliveryMode"],
+    sourceUrl: opportunity.source_url,
+    applicationUrl: opportunity.application_url ?? "",
+    status: opportunity.status as ScoredOpportunity["opportunity"]["status"],
+  };
+
+  const explanation = explain({
+    opportunity: oppShape,
+    score: total,
+    breakdown,
+    matchedNodes,
+    explanation: "",
+  });
 
   const rec: ScoredOpportunity = {
-    opportunity: {
-      id: opportunity.id,
-      slug: opportunity.slug,
-      title: opportunity.title,
-      organization: opportunity.organization,
-      description: opportunity.description ?? "",
-      opportunityType: opportunity.opportunity_type as ScoredOpportunity["opportunity"]["opportunityType"],
-      applicationDeadline: opportunity.application_deadline,
-      country: opportunity.country,
-      deliveryMode: opportunity.delivery_mode as ScoredOpportunity["opportunity"]["deliveryMode"],
-      sourceUrl: opportunity.source_url,
-      applicationUrl: opportunity.application_url ?? "",
-      status: opportunity.status as ScoredOpportunity["opportunity"]["status"],
-    },
+    opportunity: oppShape,
     score: total,
     breakdown,
     matchedNodes,
@@ -96,7 +145,7 @@ export default async function OpportunityPage({
       </p>
 
       <div className="mb-5">
-        <ScoreBreakdown breakdown={breakdown} total={total} />
+        <ScoreBreakdownUI breakdown={breakdown} total={total} />
       </div>
 
       {matchedNodes.length > 0 && (
@@ -124,6 +173,10 @@ export default async function OpportunityPage({
         </a>
         <SaveButton opportunityId={opportunity.id} />
       </div>
+      <p className="mt-4 text-xs leading-5 text-muted-foreground">
+        Always verify the details — deadlines, eligibility, and requirements —
+        on the official site before applying.
+      </p>
     </div>
   );
 }

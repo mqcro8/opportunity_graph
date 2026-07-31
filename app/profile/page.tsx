@@ -57,6 +57,8 @@ const GOAL_OPTIONS = [
 
 export default function ProfilePage() {
   const [step, setStep] = useState(0);
+  const [displayName, setDisplayName] = useState("");
+  const [gpa, setGpa] = useState("");
   const [grade, setGrade] = useState("");
   const [interests, setInterests] = useState<string[]>([]);
   const [languages, setLanguages] = useState<string[]>([]);
@@ -65,6 +67,9 @@ export default function ProfilePage() {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
   const router = useRouter();
 
   useEffect(() => {
@@ -87,6 +92,8 @@ export default function ProfilePage() {
         .single();
 
       if (profile) {
+        setDisplayName(profile.display_name ?? "");
+        setGpa(profile.gpa != null ? String(profile.gpa) : "");
         setGrade(profile.current_grade ?? "");
         setLanguages(profile.languages ?? []);
         setGoals(profile.goals ?? []);
@@ -121,11 +128,15 @@ export default function ProfilePage() {
     setSaving(true);
     setSaveError(null);
 
+    const gpaValue = gpa === "" ? null : Number(gpa);
+
     const res = await fetch("/api/profile", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
+        display_name: displayName || null,
         current_grade: grade,
+        gpa: gpaValue !== null && !Number.isNaN(gpaValue) ? gpaValue : null,
         interests,
         languages,
         goals,
@@ -154,6 +165,31 @@ export default function ProfilePage() {
     setSaved(true);
     setTimeout(() => router.push("/dashboard"), 1000);
     setSaving(false);
+  }
+
+  async function handleDeleteAccount() {
+    if (!confirmingDelete) {
+      setConfirmingDelete(true);
+      return;
+    }
+
+    setDeleting(true);
+    setDeleteError(null);
+
+    const res = await fetch("/api/profile", { method: "DELETE" });
+
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      setDeleteError(data.error ?? "Failed to delete account");
+      setDeleting(false);
+      setConfirmingDelete(false);
+      return;
+    }
+
+    const supabase = createClient();
+    await supabase.auth.signOut();
+    router.push("/");
+    router.refresh();
   }
 
   if (loading) {
@@ -206,21 +242,58 @@ export default function ProfilePage() {
         <p className="mb-4 text-lg font-medium">{stepLabels[step]}</p>
 
         {step === 0 ? (
-          <div className="mb-6 space-y-2">
-            {GRADE_OPTIONS.map((option) => (
-              <button
-                key={option}
-                onClick={() => setGrade(option)}
-                className={cn(
-                  "w-full rounded-lg border px-4 py-3 text-left text-sm transition-colors",
-                  grade === option
-                    ? "border-blue-500 bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-300"
-                    : "border-border text-muted-foreground hover:border-foreground/30"
-                )}
+          <div className="mb-6 space-y-5">
+            <div>
+              <label
+                htmlFor="display-name"
+                className="mb-1 block text-sm font-medium"
               >
-                {option}
-              </button>
-            ))}
+                Nickname
+              </label>
+              <input
+                id="display-name"
+                type="text"
+                value={displayName}
+                onChange={(e) => setDisplayName(e.target.value)}
+                placeholder="What should we call you?"
+                className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring"
+              />
+            </div>
+            <div>
+              <label
+                htmlFor="gpa"
+                className="mb-1 block text-sm font-medium"
+              >
+                GPA (optional)
+              </label>
+              <input
+                id="gpa"
+                type="number"
+                min={0}
+                max={4}
+                step={0.01}
+                value={gpa}
+                onChange={(e) => setGpa(e.target.value)}
+                placeholder="e.g. 3.8"
+                className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring"
+              />
+            </div>
+            <div className="space-y-2">
+              {GRADE_OPTIONS.map((option) => (
+                <button
+                  key={option}
+                  onClick={() => setGrade(option)}
+                  className={cn(
+                    "w-full rounded-lg border px-4 py-3 text-left text-sm transition-colors",
+                    grade === option
+                      ? "border-blue-500 bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-300"
+                      : "border-border text-muted-foreground hover:border-foreground/30"
+                  )}
+                >
+                  {option}
+                </button>
+              ))}
+            </div>
           </div>
         ) : (
           <div className="mb-6 flex flex-wrap gap-2">
@@ -287,6 +360,39 @@ export default function ProfilePage() {
                   : "Continue"}
             </Button>
           </div>
+        )}
+      </Card>
+
+      <Card className="mt-6 border-destructive/30 p-6">
+        <h2 className="text-sm font-medium text-destructive">Delete account</h2>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Permanently removes your profile, saved opportunities, and interactions.
+          This cannot be undone.
+        </p>
+
+        {deleteError && (
+          <p className="mt-3 rounded-md bg-destructive/10 p-3 text-center text-sm text-destructive">
+            {deleteError}
+          </p>
+        )}
+
+        <Button
+          variant="outline"
+          className="mt-4 w-full border-destructive/50 text-destructive hover:bg-destructive/10"
+          disabled={deleting}
+          onClick={handleDeleteAccount}
+        >
+          {deleting
+            ? "Deleting..."
+            : confirmingDelete
+              ? "Click again to confirm"
+              : "Delete account"}
+        </Button>
+
+        {confirmingDelete && !deleting && (
+          <p className="mt-2 text-center text-xs text-muted-foreground">
+            Are you sure? This will permanently delete your account and all your data.
+          </p>
         )}
       </Card>
     </div>

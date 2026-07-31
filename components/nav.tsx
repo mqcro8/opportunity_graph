@@ -4,16 +4,33 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/db";
+import { ThemeToggle } from "@/components/theme-toggle";
 
 export function Nav() {
   const pathname = usePathname();
   const router = useRouter();
-  const [user, setUser] = useState<{ email: string } | null>(null);
+  const [user, setUser] = useState<{ email: string; displayName: string | null } | null>(null);
 
   useEffect(() => {
     const supabase = createClient();
-    supabase.auth.getUser().then(({ data }) => {
-      setUser(data.user ? { email: data.user.email ?? "" } : null);
+    supabase.auth.getUser().then(async ({ data }) => {
+      if (!data.user) {
+        setUser(null);
+        return;
+      }
+
+      let displayName: string | null = null;
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("display_name")
+        .eq("id", data.user.id)
+        .maybeSingle();
+
+      if (profile?.display_name) {
+        displayName = profile.display_name as string;
+      }
+
+      setUser({ email: data.user.email ?? "", displayName });
     });
   }, [pathname]);
 
@@ -31,6 +48,7 @@ export function Nav() {
           Opportunity graph
         </Link>
         <nav className="flex items-center gap-6">
+          <ThemeToggle />
           {user ? (
             <>
               <Link
@@ -45,7 +63,9 @@ export function Nav() {
               >
                 Profile
               </Link>
-              <span className="text-xs text-muted-foreground">{user.email}</span>
+              <span className="text-xs text-muted-foreground">
+                {user.displayName ?? user.email}
+              </span>
               <button
                 onClick={handleLogout}
                 className="text-sm text-muted-foreground hover:text-foreground"

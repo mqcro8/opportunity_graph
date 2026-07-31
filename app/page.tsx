@@ -6,19 +6,19 @@ export default function HomePage() {
     <div className="py-12">
       <div className="mx-auto mb-10 max-w-xs">
         <svg viewBox="0 0 320 200" className="w-full" aria-hidden="true">
-          <line x1="160" y1="100" x2="60" y2="40" stroke="#bfdbfe" strokeWidth="1.5" />
-          <line x1="160" y1="100" x2="280" y2="50" stroke="#bfdbfe" strokeWidth="1.5" />
-          <line x1="160" y1="100" x2="160" y2="180" stroke="#bfdbfe" strokeWidth="1.5" />
-          <circle cx="60" cy="40" r="26" fill="#eff6ff" stroke="#93c5fd" />
-          <text x="60" y="44" textAnchor="middle" fontSize="10" fill="#1d4ed8">
+          <line x1="160" y1="100" x2="60" y2="40" stroke="#bfdbfe" strokeWidth="1.5" className="dark:stroke-blue-950" />
+          <line x1="160" y1="100" x2="280" y2="50" stroke="#bfdbfe" strokeWidth="1.5" className="dark:stroke-blue-950" />
+          <line x1="160" y1="100" x2="160" y2="180" stroke="#bfdbfe" strokeWidth="1.5" className="dark:stroke-blue-950" />
+          <circle cx="60" cy="40" r="26" fill="#eff6ff" stroke="#93c5fd" className="dark:fill-blue-950 dark:stroke-blue-800" />
+          <text x="60" y="44" textAnchor="middle" fontSize="10" fill="#1d4ed8" className="dark:fill-blue-300">
             Robotics
           </text>
-          <circle cx="280" cy="50" r="26" fill="#eff6ff" stroke="#93c5fd" />
-          <text x="280" y="54" textAnchor="middle" fontSize="10" fill="#1d4ed8">
+          <circle cx="280" cy="50" r="26" fill="#eff6ff" stroke="#93c5fd" className="dark:fill-blue-950 dark:stroke-blue-800" />
+          <text x="280" y="54" textAnchor="middle" fontSize="10" fill="#1d4ed8" className="dark:fill-blue-300">
             Research
           </text>
-          <circle cx="160" cy="180" r="30" fill="#eff6ff" stroke="#93c5fd" />
-          <text x="160" y="184" textAnchor="middle" fontSize="10" fill="#1d4ed8">
+          <circle cx="160" cy="180" r="30" fill="#eff6ff" stroke="#93c5fd" className="dark:fill-blue-950 dark:stroke-blue-800" />
+          <text x="160" y="184" textAnchor="middle" fontSize="10" fill="#1d4ed8" className="dark:fill-blue-300">
             Scholarships
           </text>
           <circle cx="160" cy="100" r="30" fill="#2563eb" />
@@ -39,6 +39,11 @@ export default function HomePage() {
           See your matches →
         </Link>
       </div>
+      <p className="mx-auto mt-10 max-w-md text-center text-xs leading-5 text-muted-foreground">
+        Opportunity listings are gathered from public sources and may change.
+        Always verify deadlines, eligibility, and application details on the
+        official organizer&apos;s website before applying.
+      </p>
     </div>
   );
 }

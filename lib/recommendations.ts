@@ -5,7 +5,7 @@ import { EmptyProfileError } from "@/lib/errors";
 import { SCORE_MAX } from "@/lib/constants";
 import type { ScoredOpportunity, ScoreBreakdown } from "@/lib/types";
 
-const WEIGHTS = {
+export const WEIGHTS = {
   interest: 0.4,
   eligibility: 0.25,
   deadline: 0.15,
@@ -30,7 +30,7 @@ interface DbOpportunity {
   matched_node_names: string[];
 }
 
-function interestScore(
+export function interestScore(
   matchedNodeNames: string[],
   profileNodeNames: string[],
   expandedNodeNames: string[]
@@ -45,8 +45,8 @@ function interestScore(
   return Math.round(ratio * SCORE_MAX.interest);
 }
 
-function eligibilityScore(opp: DbOpportunity): number {
-  const elig = opp.eligibility as {
+export function eligibilityScore(eligibility: Record<string, unknown>): number {
+  const elig = eligibility as {
     countries?: string[];
   };
 
@@ -58,7 +58,7 @@ function eligibilityScore(opp: DbOpportunity): number {
   return SCORE_MAX.eligibility;
 }
 
-function deadlineScore(deadline: string | null): number {
+export function deadlineScore(deadline: string | null): number {
   if (!deadline) return Math.round(SCORE_MAX.deadline * 0.5);
 
   const days = Math.ceil(
@@ -72,11 +72,11 @@ function deadlineScore(deadline: string | null): number {
   return Math.round(SCORE_MAX.deadline * 0.3);
 }
 
-function experienceScore(): number {
+export function experienceScore(): number {
   return Math.round(SCORE_MAX.experience * 0.5);
 }
 
-function popularityScore(): number {
+export function popularityScore(): number {
   return Math.round(SCORE_MAX.popularity * 0.5);
 }
 
@@ -145,7 +145,7 @@ export async function getRecommendations(
     const matchedNodes = oppNodeMap.get(opp.id) ?? [];
 
     const interest = interestScore(matchedNodes, profileNames, expandedNames);
-    const eligibility = eligibilityScore(opp);
+    const eligibility = eligibilityScore(opp.eligibility);
     const deadline = deadlineScore(opp.application_deadline);
     const experience = experienceScore();
     const popularity = popularityScore();
