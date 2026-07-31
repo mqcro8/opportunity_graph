@@ -15,6 +15,7 @@ export type OpportunityType =
 
 export interface Opportunity {
   id: string;
+  sourceId?: string | null;
   slug: string;
   title: string;
   organization: string;

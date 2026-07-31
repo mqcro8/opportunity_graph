@@ -63,7 +63,7 @@
 - [ ] `GET /api/opportunities` list endpoint (currently only slug-based detail exists)
 - [ ] Dedup check at insert time (fuzzy match on title + organization)
 - [ ] Google sign-in/up — Enable Google provider in Supabase Auth dashboard, add OAuth button to login page via `supabase.auth.signInWithOAuth({ provider: 'google' })`
-- [ ] Source Directory on dashboard — Bottom-of-dashboard section listing all sources (name + link to `base_url` + tier badge + `last_run_at`). Copy: *"Don't see what you're looking for? Browse these official directories directly"*. Displays `description` column from the `sources` table — may need a migration to add it.
+- [x] Source Directory on dashboard — Bottom-of-dashboard card showing the top 3 most relevant sources for the profile (count of recommended opportunities, tie-break tier then name; falls back to tier order in empty states) with the copy *"Don't see what you're looking for? Browse these official directories directly"* and a "View the full list of sources" link. `/sources` lists every source (name + link to `base_url` + tier badge + `description` + `last_run_at`); `sources.description` came from migration 002.
 
 **Phase 2 — scale and community**
 - [ ] Tier 2 community sources with stricter review
@@ -200,3 +200,26 @@ alter table ingestion_logs disable row level security;
 **Actions for next session**
 - Run migration `004_profile_display_name.sql` in the Supabase SQL editor (renames `full_name`, drops `university_status`)
 - Full `full_name` was never shown anywhere; any pre-existing values now live under `display_name`
+
+---
+
+## Session 5 — Source Directory
+
+**Source Directory on dashboard** (`components/source-directory.tsx`, `app/dashboard/page.tsx`)
+- New server component: Card with the copy *"Don't see what you're looking for? Browse these official directories directly"*, one row per source (external link to `base_url`, `Tier {n}` badge, `description`, `last_run_at`)
+- Dashboard restructured into a single return so the directory renders in every state (feed + no-profile / no-nodes / no-matches empty states)
+- `lib/utils.ts`: added `formatDate()` (null → "Never run")
+
+**Relevant sources + full list** (`app/sources/page.tsx`, `lib/types.ts`, `lib/recommendations.ts`)
+- Dashboard card now shows the top 3 sources ranked by count of recommended opportunities from that source (`DASHBOARD_SOURCE_LIMIT`), tie-broken by tier then name; empty states fall back to tier/name order
+- Added `sourceId` to the `Opportunity` type (`lib/types.ts`) and mapped `source_id` through in `getRecommendations()` — no schema change, the DB query already selected `*`
+- "View the full list of sources →" footer link to `/sources`
+- New `/sources` page: auth-gated (redirects to `/login`), lists every source ordered by tier then name
+
+**Cardless `/sources`** (`components/source-list.tsx`)
+- Extracted the row markup into `SourceList` (+ `DirectorySource` interface) so `/sources` renders the list without the Card/legend; `SourceDirectory` reuses `SourceList` for the dashboard
+
+**Notes / actions for next session**
+- Current DB has 3 sources: **MLH**, **Devpost**, and **IYMC** (International Young Math Challenge) — plus 1 opportunity: **The Qualification Round 026 of IYMC**
+- The `/admin/opportunities/new` form always sends an `eligibility` object; leaving it blank stores all-null + `countries: ["*"]` (global). Fine today because `eligibilityScore` is a stub that always returns 100, but wire real matching carefully — all-null eligibility would match everyone
+- No migrations, env vars, or dependencies were added this session

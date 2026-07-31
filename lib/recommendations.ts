@@ -15,6 +15,7 @@ export const WEIGHTS = {
 
 interface DbOpportunity {
   id: string;
+  source_id: string | null;
   slug: string;
   title: string;
   organization: string;
@@ -168,6 +169,7 @@ export async function getRecommendations(
     const rec: ScoredOpportunity = {
       opportunity: {
         id: opp.id,
+        sourceId: opp.source_id,
         slug: opp.slug,
         title: opp.title,
         organization: opp.organization,

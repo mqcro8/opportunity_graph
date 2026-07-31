@@ -13,6 +13,15 @@ export function slugify(text: string): string {
     .slice(0, 100);
 }
 
+export function formatDate(dateStr: string | null): string {
+  if (!dateStr) return "Never run";
+  return new Date(dateStr).toLocaleDateString("en-US", {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+  });
+}
+
 // Single deterministic path from a raw deadline to display label + urgency.
 // Computed once, not re-derived by parsing the formatted string back out.
 export function getDeadlineInfo(dateStr: string | null): { label: string; urgent: boolean } {

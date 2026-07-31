@@ -1,12 +1,11 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { createClient } from "@/lib/db";
 
-interface PendingItem {
+interface QueueItem {
   id: string;
   title: string;
   organization: string;
@@ -14,47 +13,66 @@ interface PendingItem {
   status: string;
 }
 
+type QueueStatus = "pending_review" | "verified" | "archived";
+
 export default function AdminIngestionPage() {
-  const [queue, setQueue] = useState<PendingItem[]>([]);
+  const [queue, setQueue] = useState<QueueItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [savingId, setSavingId] = useState<string | null>(null);
   const router = useRouter();
 
-  useEffect(() => {
-    async function load() {
-      const supabase = createClient();
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (!user) {
-        router.push("/login");
-        return;
-      }
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError(null);
 
-      const { data } = await supabase
-        .from("opportunities")
-        .select("id, title, organization, opportunity_type, status")
-        .in("status", ["pending_review", "verified", "archived"])
-        .order("created_at", { ascending: false });
+    const res = await fetch("/api/admin/ingestion");
 
-      setQueue(data ?? []);
-      setLoading(false);
+    if (res.status === 401) {
+      router.push("/login");
+      return;
     }
 
-    load();
+    if (!res.ok) {
+      const body = await res.json().catch(() => null);
+      setError(body?.error ?? "Failed to load the review queue.");
+      setQueue([]);
+      setLoading(false);
+      return;
+    }
+
+    const body = await res.json();
+    setQueue(body.queue ?? []);
+    setLoading(false);
   }, [router]);
 
-  async function resolve(id: string, newStatus: "verified" | "archived") {
-    const supabase = createClient();
-    await supabase
-      .from("opportunities")
-      .update({ status: newStatus, last_verified_at: new Date().toISOString() })
-      .eq("id", id);
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  async function resolve(id: string, status: QueueStatus) {
+    setSavingId(id);
+    setError(null);
+
+    const res = await fetch(`/api/admin/opportunities/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status }),
+    });
+
+    if (!res.ok) {
+      const body = await res.json().catch(() => null);
+      setError(body?.error ?? "Failed to update status.");
+      setSavingId(null);
+      return;
+    }
 
     setQueue((prev) =>
       prev.map((item) =>
-        item.id === id ? { ...item, status: newStatus } : item
+        item.id === id ? { ...item, status } : item
       )
     );
+    setSavingId(null);
   }
 
   if (loading) {
@@ -72,6 +90,11 @@ export default function AdminIngestionPage() {
       <p className="mb-4 text-sm text-muted-foreground">
         {pending.length} items pending review
       </p>
+      {error && (
+        <p className="mb-4 rounded-lg border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">
+          {error}
+        </p>
+      )}
       <div className="rounded-lg border border-border">
         {queue.map((item) => (
           <div
@@ -100,12 +123,17 @@ export default function AdminIngestionPage() {
             </div>
             {item.status === "pending_review" && (
               <div className="flex gap-2">
-                <Button size="sm" onClick={() => resolve(item.id, "verified")}>
+                <Button
+                  size="sm"
+                  disabled={savingId === item.id}
+                  onClick={() => resolve(item.id, "verified")}
+                >
                   Approve
                 </Button>
                 <Button
                   size="sm"
                   variant="outline"
+                  disabled={savingId === item.id}
                   onClick={() => resolve(item.id, "archived")}
                 >
                   Reject
