@@ -4,6 +4,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { requireAdmin } from "@/lib/admin";
 import { linkOpportunityToNodes, suggestNodeSlugs } from "@/lib/linking";
 import { slugify } from "@/lib/utils";
+import { OPPORTUNITY_TYPES } from "@/lib/constants";
 
 const StatusSchema = z.object({
   status: z.enum(["verified", "archived"]),
@@ -13,19 +14,7 @@ const UpdateSchema = z.object({
   title: z.string().min(3),
   organization: z.string().min(2),
   description: z.string().optional(),
-  opportunity_type: z.enum([
-    "scholarship",
-    "hackathon",
-    "olympiad",
-    "internship",
-    "summer_program",
-    "conference",
-    "fellowship",
-    "competition",
-    "exchange",
-    "certification",
-    "grant",
-  ]),
+  opportunity_type: z.enum(OPPORTUNITY_TYPES),
   application_deadline: z.string().date().nullable().optional(),
   country: z.string().nullable().optional(),
   delivery_mode: z.enum(["online", "in_person", "hybrid"]).nullable().optional(),

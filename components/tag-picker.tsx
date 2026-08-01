@@ -13,7 +13,7 @@ export interface TagNode {
   type: string;
 }
 
-const TYPE_LABELS: Record<string, string> = {
+export const TYPE_LABELS: Record<string, string> = {
   skill: "Skills",
   interest: "Interests",
   field: "Fields",
@@ -34,7 +34,7 @@ const CREATE_TYPES = [
   "audience",
 ];
 
-const TYPE_ORDER = [
+export const TYPE_ORDER = [
   "field",
   "skill",
   "interest",

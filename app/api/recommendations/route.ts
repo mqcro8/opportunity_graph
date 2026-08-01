@@ -14,7 +14,7 @@ export async function GET() {
   }
 
   try {
-    const recommendations = await getRecommendations(user.id);
+    const recommendations = await getRecommendations(user.id, 20);
     return NextResponse.json({ recommendations });
   } catch (error) {
     if (error instanceof EmptyProfileError) {

@@ -1,27 +1,16 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireAdmin } from "@/lib/admin";
 import { linkOpportunityToNodes } from "@/lib/linking";
 import { slugify } from "@/lib/utils";
+import { OPPORTUNITY_TYPES, PAGE_SIZE } from "@/lib/constants";
 
 const AdminOpportunitySchema = z.object({
   title: z.string().min(3),
   organization: z.string().min(2),
   description: z.string().optional(),
-  opportunity_type: z.enum([
-    "scholarship",
-    "hackathon",
-    "olympiad",
-    "internship",
-    "summer_program",
-    "conference",
-    "fellowship",
-    "competition",
-    "exchange",
-    "certification",
-    "grant",
-  ]),
+  opportunity_type: z.enum(OPPORTUNITY_TYPES),
   application_deadline: z.string().date().nullable().optional(),
   country: z.string().nullable().optional(),
   delivery_mode: z.enum(["online", "in_person", "hybrid"]).nullable().optional(),
@@ -42,22 +31,72 @@ const AdminOpportunitySchema = z.object({
   tags: z.array(z.string()).optional(),
 });
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   const auth = await requireAdmin();
   if (!auth.ok) return auth.response;
 
   const admin = createAdminClient();
 
-  const { data, error } = await admin
+  const searchParams = request.nextUrl.searchParams;
+  const status = searchParams.get("status") ?? "";
+  const type = searchParams.get("type") ?? "";
+  const tag = searchParams.get("tag") ?? "";
+  const page = Math.max(
+    1,
+    Number.parseInt(searchParams.get("page") ?? "1", 10) || 1
+  );
+  const pageSize = Math.max(
+    1,
+    Number.parseInt(searchParams.get("pageSize") ?? String(PAGE_SIZE), 10) ||
+      PAGE_SIZE
+  );
+
+  let ids: string[] | null = null;
+  if (tag) {
+    const { data: node } = await admin
+      .from("graph_nodes")
+      .select("id")
+      .eq("slug", tag)
+      .maybeSingle();
+
+    if (node) {
+      const { data: links } = await admin
+        .from("opportunity_nodes")
+        .select("opportunity_id")
+        .eq("node_id", node.id);
+      ids = (links ?? []).map((l) => l.opportunity_id);
+    }
+
+    if (!node || !ids || ids.length === 0) {
+      return NextResponse.json({ opportunities: [], total: 0, page, pageSize });
+    }
+  }
+
+  let query = admin
     .from("opportunities")
-    .select("id, slug, title, organization, opportunity_type, status, created_at")
+    .select(
+      "id, slug, title, organization, opportunity_type, status, created_at",
+      { count: "exact" }
+    )
     .order("created_at", { ascending: false });
+
+  if (status) query = query.eq("status", status);
+  if (type) query = query.eq("opportunity_type", type);
+  if (ids) query = query.in("id", ids);
+
+  const from = (page - 1) * pageSize;
+  const { data, count, error } = await query.range(from, from + pageSize - 1);
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  return NextResponse.json({ opportunities: data ?? [] });
+  return NextResponse.json({
+    opportunities: data ?? [],
+    total: count ?? 0,
+    page,
+    pageSize,
+  });
 }
 
 export async function POST(request: Request) {

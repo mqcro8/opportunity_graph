@@ -3,9 +3,13 @@ import { createClient } from "@/lib/supabase/server";
 import { OpportunityRow } from "@/components/opportunity-row";
 import { SourceDirectory } from "@/components/source-directory";
 import type { DirectorySource } from "@/components/source-directory";
+import { DashboardFilters } from "@/components/dashboard-filters";
+import type { FilterNode } from "@/components/opportunity-filters";
+import { Pagination } from "@/components/pagination";
 import { Card } from "@/components/ui/card";
 import Link from "next/link";
 import { buttonVariants } from "@/components/ui/button";
+import { PAGE_SIZE } from "@/lib/constants";
 
 const DASHBOARD_SOURCE_LIMIT = 3;
 
@@ -40,13 +44,21 @@ function rankSources(
     }));
 }
 
-export default async function DashboardPage() {
+export default async function DashboardPage({
+  searchParams,
+}: {
+  searchParams: { type?: string; tag?: string; page?: string };
+}) {
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
 
   if (!user) redirect("/login");
+
+  const type = searchParams.type ?? "";
+  const tag = searchParams.tag ?? "";
+  const page = Math.max(1, Number.parseInt(searchParams.page ?? "1", 10) || 1);
 
   const { data: profile } = await supabase
     .from("profiles")
@@ -59,6 +71,19 @@ export default async function DashboardPage() {
     .select("id, name, tier, base_url, description, last_run_at")
     .order("tier")
     .order("name");
+
+  const { data: rawNodes } = await supabase
+    .from("graph_nodes")
+    .select("id, name, slug, type")
+    .order("type")
+    .order("name");
+
+  const filterNodes: FilterNode[] = (rawNodes ?? []).map((n) => ({
+    id: n.id,
+    name: n.name,
+    slug: n.slug,
+    type: n.type,
+  }));
 
   const sourceRows = (sources ?? []) as SourceRow[];
   let directorySources = rankSources(sourceRows, {});
@@ -124,22 +149,59 @@ export default async function DashboardPage() {
         }
         directorySources = rankSources(sourceRows, counts);
 
+        let filtered = recommendations;
+        if (type) {
+          filtered = filtered.filter(
+            (rec) => rec.opportunity.opportunityType === type
+          );
+        }
+        if (tag) {
+          const tagName =
+            filterNodes.find((n) => n.slug === tag)?.name ?? tag;
+          filtered = filtered.filter((rec) =>
+            rec.opportunity.tags.includes(tagName)
+          );
+        }
+
+        const total = filtered.length;
+        const paged = filtered.slice(
+          (page - 1) * PAGE_SIZE,
+          page * PAGE_SIZE
+        );
+
+        function buildHref(p: number) {
+          const params = new URLSearchParams();
+          if (type) params.set("type", type);
+          if (tag) params.set("tag", tag);
+          if (p > 1) params.set("page", String(p));
+          const qs = params.toString();
+          return qs ? `/dashboard?${qs}` : "/dashboard";
+        }
+
         content = (
           <div>
             <p className="mb-3 text-sm text-muted-foreground">
-              {recommendations.length} opportunit
-              {recommendations.length === 1 ? "y" : "ies"} match your profile
+              {total} opportunit
+              {total === 1 ? "y" : "ies"} match your profile
             </p>
-            <Card className="overflow-hidden">
-              {recommendations.map((rec) => (
+            <DashboardFilters nodes={filterNodes} type={type} tag={tag} />
+            <Card className="mt-3 overflow-hidden">
+              {paged.map((rec) => (
                 <OpportunityRow key={rec.opportunity.id} rec={rec} />
               ))}
-              {recommendations.length === 0 && (
+              {paged.length === 0 && (
                 <p className="p-5 text-sm text-muted-foreground">
-                  No matches yet. Try adding more interests to your profile.
+                  No matches for these filters. Try removing a filter.
                 </p>
               )}
             </Card>
+            <Pagination
+              page={page}
+              totalPages={Math.max(1, Math.ceil(total / PAGE_SIZE))}
+              total={total}
+              pageSize={PAGE_SIZE}
+              buildHref={buildHref}
+            />
           </div>
         );
       }

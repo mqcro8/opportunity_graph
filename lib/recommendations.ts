@@ -83,7 +83,7 @@ export function popularityScore(): number {
 
 export async function getRecommendations(
   profileId: string,
-  limit = 20
+  limit?: number
 ): Promise<ScoredOpportunity[]> {
   const supabase = await createClient();
 

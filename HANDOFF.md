@@ -2,7 +2,7 @@
 
 ## What's been done
 
-Phase 0 (core loop) is complete; the per-session notes below (Sessions 2–7) document everything added since. This summary reflects the current tree.
+Phase 0 (core loop) is complete and **V1 has shipped** — the app is live at https://opportunity-graph.vercel.app (production, `master`) and was submitted to a Devpost hackathon; the `changes_to_opportunities` branch is the staging phase. The per-session notes below (Sessions 2–9) document everything added since. This summary reflects the current tree.
 
 **Infrastructure**
 - Next.js 14 App Router project at repo root
@@ -12,23 +12,25 @@ Phase 0 (core loop) is complete; the per-session notes below (Sessions 2–7) do
 - `.gitignore` — covers node_modules, .next, .env.local, build artifacts
 - `README.md` — setup instructions, architecture overview, project structure
 - `.eslintrc.json` — extends `next/core-web-vitals`, ESLint pinned to v8
+- **Deployed to Vercel** — production at https://opportunity-graph.vercel.app (`master` branch); the `changes_to_opportunities` branch is the staging phase (own Vercel preview deployment)
+- **Submitted to a Devpost hackathon** (V1)
 
 **Database (Supabase)**
 - Full schema migrated: `graph_nodes`, `graph_edges`, `sources`, `opportunities`, `opportunity_nodes`, `profiles`, `profile_nodes`, `interactions`, `ingestion_logs` (migrations 001–005 in `supabase/migrations/`)
 - Row Level Security enabled on profiles, profile_nodes, interactions, opportunities; disabled on the reference tables (graph_nodes, graph_edges, opportunity_nodes, sources, ingestion_logs)
-- Seed data: 29 graph nodes, 15 real opportunities (scholarships, hackathons, competitions, etc.), 19 graph edges, ~35 opportunity-node links (migration 001; migration 003 backfills the 11 category hub nodes)
-- Migration 005 expands the taxonomy: new `audience` node type + ~19 nodes (subjects, skills, interests, languages, regions, "Open to All") and edges so new subjects reach the existing hubs (Session 6)
-- Live DB contents are in flux — see the Session 5 note
+- Seed data: 29 graph nodes, 16 real opportunities (scholarships, hackathons, competitions, etc.), 19 graph edges, 36 opportunity-node links (migration 001; migration 003 backfills the 11 category hub nodes)
+- Migration 005 expands the taxonomy: new `audience` node type + 24 nodes (6 fields, 4 skills, 3 interests, 5 languages, 5 regions, "Open to All") and 20 edges so new subjects reach the existing hubs (Session 6)
+- Live DB contents are in flux — as of the latest check: 13 sources, 3 verified opportunities, 29 in the `pending_review` queue (more are incoming)
 
 **Core lib**
-- `lib/recommendations.ts` — Scoring engine: interest (40%), eligibility (25%), deadline (15%), experience (10%), popularity (10%). Uses 2-hop graph expansion. `eligibilityScore`/`experienceScore`/`popularityScore` are stubs.
+- `lib/recommendations.ts` — Scoring engine: interest (40%), eligibility (25%), deadline (15%), experience (10%), popularity (10%). Uses 2-hop graph expansion. `eligibilityScore`/`experienceScore`/`popularityScore` are stubs. `getRecommendations(profileId, limit?)` — `limit` is optional; when omitted it returns the full ranked list (dashboard paginates over it). `/api/recommendations` still passes an explicit 20 (Session 9)
 - `lib/graph.ts` — BFS graph traversal via Supabase queries
 - `lib/linking.ts` — Auto-linking: category hub + keyword-matched nodes (`NODE_KEYWORDS`), plus `GOAL_NODE_MAP` so profile goals resolve to real graph nodes. `suggestNodeSlugs()` exposes the auto-link logic; `linkOpportunityToNodes()` accepts explicit slugs so admins can hand-tag (Session 6)
 - `lib/explain.ts` — Template-based "why am I seeing this" generation
 - `lib/extraction.ts` — Zod schema + Gemini 2.5 Flash extraction (`extractFromUrl`/`extractFromHtml`)
 - `lib/admin.ts` — `requireAdmin()` gating (`ADMIN_EMAIL`); middleware redirects for all `/admin/*`
 - `lib/errors.ts` — `EmptyProfileError` (thrown when profile has no graph nodes)
-- `lib/constants.ts` — `SCORE_MAX` shared between server and client
+- `lib/constants.ts` — `SCORE_MAX` shared between server and client, plus `OPPORTUNITY_TYPES`, `SOURCE_TIERS`, and `PAGE_SIZE` (10) for the filter/pagination UI (Session 9)
 - `lib/utils.ts` — `cn`, `slugify`, `formatDate`, `getDeadlineInfo`
 
 **API routes**
@@ -37,9 +39,9 @@ Phase 0 (core loop) is complete; the per-session notes below (Sessions 2–7) do
 - `POST /api/interactions` — Track saved/applied/dismissed
 - `GET /api/opportunities/[slug]` — Single opportunity with matched nodes
 - `GET|POST /api/ingest/[sourceId]` — Ingestion endpoint protected by `CRON_SECRET`
-- `GET /api/admin/ingestion` — Review queue (pending_review/verified/archived)
+- `GET /api/admin/ingestion` — Review queue with server-side filters + pagination (`status`, `type`, `tag`, `page`, `pageSize`; returns `{ queue, total, page, pageSize }`) (Session 9)
 - `POST /api/admin/opportunities` + `PATCH /api/admin/opportunities/[id]` — Create verified opportunity (auto-links nodes or accepts explicit `tags`) / approve-reject status
-- `GET /api/admin/opportunities` + `GET|PUT /api/admin/opportunities/[id]` — List all opportunities for the edit index; full edit incl. tags (Session 6)
+- `GET /api/admin/opportunities` + `GET|PUT /api/admin/opportunities/[id]` — List with the same `status`/`type`/`tag`/`page`/`pageSize` filters (count via `{ count: "exact" }` + `.range()`) for the edit index; full edit incl. tags (Session 6; pagination/filters Session 9)
 - `GET|POST /api/admin/graph-nodes` — List all graph nodes (grouped by type) and create a tag on the fly (Session 6)
 - `POST /api/admin/sources` — Create source
 - `/auth/callback` — OAuth callback handler
@@ -47,11 +49,11 @@ Phase 0 (core loop) is complete; the per-session notes below (Sessions 2–7) do
 
 **Pages**
 - `/login` — Email/password auth (login + signup toggle), sign-up consent checkboxes, "Check your email" confirmation
-- `/dashboard` — Server-rendered ranked feed from real recommendation engine + Source Directory card
+- `/dashboard` — Server-rendered ranked feed from real recommendation engine + Source Directory card. Filters by type + graph-node tag via URL params (`?type=…&tag=…&page=…`), paginated 10/page (Session 9)
 - `/opportunities/[slug]` — Detail page with score breakdown + explanation + Save button
 - `/profile` — 4-step onboarding: Grade (Nickname + GPA) → Interests → Languages → Goals, persists to Supabase; danger-zone account deletion. Interest/Language options load from `graph_nodes` (Session 6)
-- `/sources` — Full source directory (tier-ordered list with `description` + `last_run_at`)
-- `/admin` — Admin landing; `/admin/ingestion` (approve/reject) + `/admin/ingestion/[id]` (full review: see all AI-extracted fields, edit, then approve/reject) (Session 7); `/admin/opportunities` (index with Edit links); `/admin/opportunities/new`; `/admin/opportunities/[id]/edit` (Session 6); `/admin/sources/new`
+- `/sources` — Full source directory (tier-ordered list with `description` + `last_run_at`); tier chip filter + name search + pagination via URL params (Session 9)
+- `/admin` — Admin landing; `/admin/ingestion` (approve/reject) + `/admin/ingestion/[id]` (full review: see all AI-extracted fields, edit, then approve/reject) (Session 7); `/admin/opportunities` (index with Edit links); `/admin/opportunities/new`; `/admin/opportunities/[id]/edit` (Session 6); `/admin/sources/new`. Both list pages gained status/type/tag filters + pagination (Session 9)
 - `/terms`, `/privacy` — Legal pages rendered from `TERMS_OF_SERVICE.md` / `PRIVACY_POLICY.md` via `MarkdownPage`
 
 **Components**
@@ -60,8 +62,13 @@ Phase 0 (core loop) is complete; the per-session notes below (Sessions 2–7) do
 - `ScoreBreakdown` — Visual progress bars for each scoring dimension
 - `SaveButton` — Client-side `fetch` POST to `/api/interactions`
 - `SourceDirectory` / `SourceList` — Dashboard source card + shared row markup
-- `TagPicker` — Searchable, type-grouped tag multi-select + inline tag creation (Session 6)
+- `TagPicker` — Searchable, type-grouped tag multi-select + inline tag creation (Session 6); now exports `TYPE_LABELS` / `TYPE_ORDER` for reuse (Session 9)
 - `AdminOpportunityForm` — Shared create/edit form (`components/admin/opportunity-form.tsx`, Session 6). Now `forwardRef`-based: exposes `save()` + an `extraActions` slot, and exports the shared `dbToForm()` helper (Session 7)
+- `Pagination` — Numbered pager (prev/next + windowed page links with ellipsis, "X–Y of N"); link-based so it works from server pages (Session 9)
+- `OpportunityFilters` — Shared type `<select>` + searchable single-select graph-node tag picker (presentational/controlled; used by admin lists and dashboard) (Session 9)
+- `DashboardFilters` — Thin client wrapper wiring `OpportunityFilters` to the dashboard URL (Session 9)
+- `SourceFilters` — Tier chips + name search for `/sources` (Session 9)
+- `StatusFilter` — All/Pending review/Verified/Archived chips for the admin lists (Session 9)
 - `ThemeProvider` / `ThemeToggle` — next-themes dark mode
 - `MarkdownPage` — `react-markdown` wrapper with `.prose` styles
 - UI primitives: `Button`, `Card`, `Badge`, `ProgressBar`, `Field`
@@ -106,7 +113,7 @@ Phase 0 (core loop) is complete; the per-session notes below (Sessions 2–7) do
 - **ESLint:** Pinned to v8 for Next.js 14 compatibility. Don't upgrade to v9+ without also upgrading Next.js.
 - **Login page:** After signup the user sees a "Check your email" confirmation screen (`app/login/page.tsx`) with a "Back to sign in" option. The sign-up mode also requires two checkboxes (13-or-older + ToS/Privacy acceptance) before submit is enabled.
 - **Old directory:** The `opportunity-graph-ui/` subdirectory (the pre-root location) no longer exists.
-- **Dead code:** `lib/mock-data.ts` was deleted in Session 6 (it no longer compiled after `Opportunity.tags` was added). Nothing else is dead.
+- **Dead code:** `lib/mock-data.ts` was deleted in Session 6 (it no longer compiled after `Opportunity.tags` was added). The only remaining unused export is `isAdminEmail` in `lib/admin.ts`.
 - **Tags are graph nodes.** There is no separate `tags` column — an opportunity's tags ARE its `opportunity_nodes` links. Admin-selected tags are authoritative; the category hub is always added. `Opportunity.tags` (all labels) is distinct from `ScoredOpportunity.matchedNodes` (the scoring subset).
 - **Scoring stubs:** `eligibilityScore()` always returns 100, and `experienceScore()` / `popularityScore()` always return half the max — the first because real profile-vs-opportunity eligibility matching isn't wired yet, the latter two because interactions don't feed the engine yet.
 
@@ -306,5 +313,62 @@ alter table ingestion_logs disable row level security;
 - Now imports the shared `dbToForm`; its inline copy was removed
 
 **Notes / actions for next session**
-- `PUT` stamps `last_verified_at` on every save, so "Save changes" on a still-pending item also updates that timestamp — harmless today; consider reserving it for actual verification
+- Both `PUT` (save edits) and `PATCH` (approve/reject) stamp `last_verified_at`, so "Save changes" on a still-pending item also updates that timestamp — harmless today; consider reserving it for actual verification
 - Verified: `npm run lint` + `npm run build` pass; no deps, env vars, API, or DB changes this session
+
+---
+
+## Session 8 — deployment and hackathon submission
+
+**V1 shipped**
+- App is live at https://opportunity-graph.vercel.app (production, `master` branch)
+- The `changes_to_opportunities` branch is the staging phase (own Vercel preview deployment)
+- Submitted the app to a Devpost hackathon
+
+**Live DB at submission**
+- 13 sources, 3 verified opportunities, 29 in the `pending_review` queue — more are incoming
+
+**Notes / actions for next session**
+- No code, API, or DB changes this session — docs only
+- Verified: `npm run lint` + `npm run build` pass
+- Remaining open items are unchanged: `vercel.json` cron, weekly digest, fuzzy dedup, error boundaries, `GET /api/opportunities`, Google sign-in (see "What's left")
+
+---
+
+## Session 9 — filters + pagination for admin lists, dashboard, and sources
+
+Motivation: with more opportunities and sources coming in, the admin/opportunities, admin/ingestion, dashboard, and /sources lists were printing everything at once. Added a filter per list and numbered pagination at 10 rows/page, all driven by URL search params so back/forward and shareable links work. No schema/migration changes.
+
+**Shared constants** (`lib/constants.ts`)
+- `OPPORTUNITY_TYPES` — the 11-type tuple, now the single source for the filter dropdowns; the zod enums in `POST /api/admin/opportunities` and `PUT /api/admin/opportunities/[id]` were refactored to `z.enum(OPPORTUNITY_TYPES)`
+- `SOURCE_TIERS = [1, 2, 3]`, `PAGE_SIZE = 10`
+
+**Server-side filtered + paginated admin APIs**
+- `GET /api/admin/opportunities` and `GET /api/admin/ingestion` accept `status`, `type`, `tag` (graph-node slug), `page`, `pageSize`. Tag filter resolves slug → `graph_nodes` id → `opportunity_nodes` opportunity ids → `.in("id", …)`. Pagination uses `{ count: "exact" }` + `.range()`. Responses include `total`/`page`/`pageSize`.
+- The `z.enum([...])` in the two write schemas now imports `OPPORTUNITY_TYPES`.
+
+**Admin list pages** (`app/admin/opportunities`, `app/admin/ingestion`)
+- Split each into a server `page.tsx` (passes `searchParams` as props) + a client list component (`opportunities-list.tsx` / `ingestion-queue.tsx`). Passing searchParams as props avoids `useSearchParams()`/Suspense on these statically-prerenderable routes.
+- Filter UI: `StatusFilter` chips (All/Pending review/Verified/Archived) + `OpportunityFilters` (type `<select>` + searchable single-select tag picker). Changing a filter resets to page 1. List refetches when the URL changes.
+- Ingestion rows keep inline Approve/Reject; after resolving, the page refetches so counts and the filtered set stay correct.
+
+**Dashboard** (`app/dashboard/page.tsx`)
+- `getRecommendations(profileId, limit?)` — `limit` is now optional and omitted on the dashboard, so pagination can grow past the old 20-cap; `/api/recommendations` still passes an explicit 20 to keep its contract.
+- Type + tag filters applied to the scored list (tag matched by name against the opportunity's full `tags`), then sliced 10/page. Graph nodes are fetched server-side (RLS is off on `graph_nodes`) for the filter bar; `DashboardFilters` is a thin client wrapper that writes the URL.
+
+**Sources** (`app/sources/page.tsx`)
+- Tier chip filter + name search (`ilike` on `name`) + pagination, all server-side via search params.
+
+**New components**
+- `components/pagination.tsx` — link-based pager: Prev/Next + windowed page numbers with ellipsis + "X–Y of N". Renders `null` on a single page so it doesn't duplicate the page headers.
+- `components/opportunity-filters.tsx` — presentational/controlled (no router): type select + searchable, type-grouped single-select tag dropdown. Reused by both admin lists and the dashboard.
+- `components/dashboard-filters.tsx` — client wrapper wiring `OpportunityFilters` to the dashboard URL.
+- `components/source-filters.tsx` — tier chips + debounced-on-Enter/blur name search.
+- `components/status-filter.tsx` — admin status chips.
+- `components/tag-picker.tsx` — now exports `TYPE_LABELS` / `TYPE_ORDER` so `OpportunityFilters` groups tags the same way.
+
+**Notes / decisions**
+- Tag filter is single-select for now; multi-tag AND filtering is a natural follow-up.
+- Filters/pagination live in the URL (`?status=…&type=…&tag=…&page=…` / `?tier=…&q=…&page=…`); changing a filter drops `page`.
+- The tag dropdown's "Open to All" etc. nodes are listed too — they're valid tags even if they never score.
+- Verified: `npm run lint` + `npm run build` pass; no deps, env vars, API (other than the extended GETs), or DB changes this session.

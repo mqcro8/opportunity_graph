@@ -317,7 +317,10 @@ New rows land with `status = 'pending_review'`. Nothing reaches a student's dash
   terms/page.tsx, privacy/page.tsx
   admin/page.tsx                 -- landing
   admin/ingestion/page.tsx       -- pending_review queue, approve/reject
+  admin/ingestion/[id]/page.tsx  -- full review: edit every field, then approve/reject
+  admin/opportunities/page.tsx   -- index with Edit links
   admin/opportunities/new/page.tsx
+  admin/opportunities/[id]/edit/page.tsx
   admin/sources/new/page.tsx
   auth/callback/route.ts         -- OAuth callback handler
   auth/logout/route.ts           -- sign out endpoint
@@ -329,6 +332,7 @@ New rows land with `status = 'pending_review'`. Nothing reaches a student's dash
     /admin/ingestion/route.ts
     /admin/opportunities/route.ts
     /admin/opportunities/[id]/route.ts
+    /admin/graph-nodes/route.ts
     /admin/sources/route.ts
     /ingest/[sourceId]/route.ts     -- for Vercel Cron, protected by CRON_SECRET
 /lib
@@ -343,11 +347,23 @@ New rows land with `status = 'pending_review'`. Nothing reaches a student's dash
   /admin.ts               -- requireAdmin() gating
   /explain.ts             -- Section 4
   /types.ts, /constants.ts, /errors.ts, /utils.ts
+/components
+  /ui/*.tsx               -- Button, Card, Badge, ProgressBar, Field
+  /nav.tsx                -- auth-aware nav + theme toggle
+  /opportunity-row.tsx    -- feed row: match %, deadline badge, all tags
+  /score-breakdown.tsx    -- progress bars per scoring dimension
+  /save-button.tsx        -- POSTs to /api/interactions
+  /source-directory.tsx   -- dashboard "top 3 relevant sources" card
+  /source-list.tsx        -- shared source row markup (dashboard + /sources)
+  /tag-picker.tsx         -- searchable, type-grouped tag multi-select + inline creation
+  /markdown-page.tsx      -- react-markdown wrapper for legal pages
+  /theme-provider.tsx, /theme-toggle.tsx
+  /admin/opportunity-form.tsx -- shared create/edit/review form
 /supabase
-  /migrations/001..004.sql
+  /migrations/001..005.sql
 ```
 
-Notes on the current tree: `GET /api/opportunities` (list) doesn't exist yet — only the slug-based detail route does. `lib/mock-data.ts` is dead code and unused.
+Notes on the current tree: `GET /api/opportunities` (list) doesn't exist yet — only the slug-based detail route does. `lib/mock-data.ts` was deleted in Session 6 (it no longer compiled after `Opportunity.tags` was added).
 
 Optional stretch, genuinely worth it for a hackathon demo: a `/graph` page with a force-directed visualization (e.g. `react-force-graph`) of a student's expanded node neighborhood. It's the single most legible way to show a judge *why* the system isn't "just another wrapper." Build it after Phase 0's core loop works, not before.
 
@@ -362,6 +378,8 @@ Optional stretch, genuinely worth it for a hackathon demo: a `/graph` page with 
 - `ANTHROPIC_API_KEY` — only if/when you build the Phase 1+ coaching feature
 - `CRON_SECRET` — checked in every `/api/ingest/*` route so it can't be triggered by anyone who finds the URL
 - `ADMIN_EMAIL` — gates `/admin/*` and `/api/admin/*` (must equal the Supabase user's email)
+
+**Live deployment:** V1 shipped — live at https://opportunity-graph.vercel.app (production, `master` branch) and submitted to a Devpost hackathon. The `changes_to_opportunities` branch is the staging phase (its own Vercel preview deployment). Live DB at ship: 13 sources, 3 verified opportunities, 29 in `pending_review` — more incoming.
 
 **`vercel.json`:**
 ```json
@@ -380,8 +398,10 @@ The `vercel.json` cron is **not deployed yet** — `/api/ingest/[sourceId]` work
 
 ## 8. Phased build plan
 
+**V1 status:** shipped — live at https://opportunity-graph.vercel.app (production, `master`) and submitted to a Devpost hackathon; this branch is the staging phase. Phase 0 is complete; the open Phase 1/1.5 items below are the v1.1 backlog.
+
 **Phase 0 — demoable core loop** ✅ complete
-- [x] Hand-seeded real opportunities (15 in migration 001)
+- [x] Hand-seeded real opportunities (16 in migration 001)
 - [x] Build the graph: 29 nodes covering fields/skills/universities + 11 category hubs (migrations 001, 003)
 - [x] Profile creation (4-step short form: Grade/Nickname/GPA → Interests → Languages → Goals)
 - [x] Recommendation engine v1 exactly as in Section 3
