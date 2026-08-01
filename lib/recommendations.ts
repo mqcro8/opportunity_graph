@@ -142,6 +142,19 @@ export async function getRecommendations(
     oppNodeMap.set(on.opportunity_id, names);
   }
 
+  const { data: allOppNodes } = await supabase
+    .from("opportunity_nodes")
+    .select("opportunity_id, graph_nodes(name)")
+    .in("opportunity_id", oppIds);
+
+  const allTagsMap = new Map<string, string[]>();
+  for (const on of allOppNodes ?? []) {
+    const names = allTagsMap.get(on.opportunity_id) ?? [];
+    const nodeName = (on.graph_nodes as unknown as { name: string })?.name;
+    if (nodeName) names.push(nodeName);
+    allTagsMap.set(on.opportunity_id, names);
+  }
+
   const scored: ScoredOpportunity[] = (opportunities ?? []).map((opp) => {
     const matchedNodes = oppNodeMap.get(opp.id) ?? [];
 
@@ -181,6 +194,7 @@ export async function getRecommendations(
         sourceUrl: opp.source_url,
         applicationUrl: opp.application_url ?? "",
         status: opp.status as ScoredOpportunity["opportunity"]["status"],
+        tags: allTagsMap.get(opp.id) ?? [],
       },
       score: Math.round(score),
       breakdown,

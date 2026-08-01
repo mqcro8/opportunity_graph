@@ -37,7 +37,28 @@ const AdminOpportunitySchema = z.object({
       age_max: z.number().nullable().optional(),
     })
     .optional(),
+  // Graph node slugs the admin explicitly tagged. When present these are
+  // authoritative for linking (plus the category hub is always added).
+  tags: z.array(z.string()).optional(),
 });
+
+export async function GET() {
+  const auth = await requireAdmin();
+  if (!auth.ok) return auth.response;
+
+  const admin = createAdminClient();
+
+  const { data, error } = await admin
+    .from("opportunities")
+    .select("id, slug, title, organization, opportunity_type, status, created_at")
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+
+  return NextResponse.json({ opportunities: data ?? [] });
+}
 
 export async function POST(request: Request) {
   const auth = await requireAdmin();
@@ -99,12 +120,17 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  const linkedNodes = await linkOpportunityToNodes(admin, inserted.id, {
-    title: body.title,
-    organization: body.organization,
-    description: body.description,
-    opportunity_type: body.opportunity_type,
-  });
+  const linkedNodes = await linkOpportunityToNodes(
+    admin,
+    inserted.id,
+    {
+      title: body.title,
+      organization: body.organization,
+      description: body.description,
+      opportunity_type: body.opportunity_type,
+    },
+    body.tags
+  );
 
   return NextResponse.json({ ok: true, id: inserted.id, slug, linkedNodes });
 }

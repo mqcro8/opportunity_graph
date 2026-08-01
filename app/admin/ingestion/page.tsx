@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 
@@ -121,8 +122,13 @@ export default function AdminIngestionPage() {
                 </Badge>
               </div>
             </div>
-            {item.status === "pending_review" && (
+            {item.status === "pending_review" ? (
               <div className="flex gap-2">
+                <Link href={`/admin/ingestion/${item.id}`}>
+                  <Button size="sm" variant="outline">
+                    View details
+                  </Button>
+                </Link>
                 <Button
                   size="sm"
                   disabled={savingId === item.id}
@@ -139,6 +145,12 @@ export default function AdminIngestionPage() {
                   Reject
                 </Button>
               </div>
+            ) : (
+              <Link href={`/admin/ingestion/${item.id}`}>
+                <Button size="sm" variant="outline">
+                  View details
+                </Button>
+              </Link>
             )}
           </div>
         ))}

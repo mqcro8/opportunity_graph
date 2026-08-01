@@ -8,9 +8,14 @@ const LINKS = [
     description: "Approve or reject AI-extracted opportunities.",
   },
   {
+    href: "/admin/opportunities",
+    title: "All opportunities",
+    description: "List and edit opportunities, including their tags.",
+  },
+  {
     href: "/admin/opportunities/new",
     title: "Add opportunity",
-    description: "Manually add a verified opportunity with auto-linked matches.",
+    description: "Manually add a verified opportunity and pick its matching tags.",
   },
   {
     href: "/admin/sources/new",

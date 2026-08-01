@@ -27,6 +27,9 @@ export interface Opportunity {
   sourceUrl: string;
   applicationUrl: string;
   status: "pending_review" | "verified" | "archived";
+  // Every graph node the opportunity is tagged with, in no particular order.
+  // The full set of labels; the matching subset is ScoredOpportunity.matchedNodes.
+  tags: string[];
 }
 
 // Keys match the WEIGHTS keys in lib/recommendations.ts exactly —

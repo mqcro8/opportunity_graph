@@ -7,6 +7,8 @@ import { getDeadlineInfo } from "@/lib/utils";
 
 export function OpportunityRow({ rec }: { rec: ScoredOpportunity }) {
   const { label, urgent } = getDeadlineInfo(rec.opportunity.applicationDeadline);
+  const tags =
+    rec.opportunity.tags.length > 0 ? rec.opportunity.tags : rec.matchedNodes;
 
   return (
     <div className="border-b border-border p-5 last:border-b-0">
@@ -23,9 +25,9 @@ export function OpportunityRow({ rec }: { rec: ScoredOpportunity }) {
         </div>
       </div>
       <div className="mb-2 flex flex-wrap gap-1.5">
-        {rec.matchedNodes.map((n) => (
-          <Badge key={n} variant="interest">
-            {n}
+        {tags.map((tag) => (
+          <Badge key={tag} variant={rec.matchedNodes.includes(tag) ? "interest" : "muted"}>
+            {tag}
           </Badge>
         ))}
         <Badge variant={urgent ? "deadline" : "muted"}>

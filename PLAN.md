@@ -101,9 +101,8 @@ create table opportunity_nodes (
 -- ============ STUDENTS ============
 create table profiles (
   id uuid primary key references auth.users(id) on delete cascade,
-  full_name text,
+  display_name text,
   current_grade text,
-  university_status text,
   gpa numeric,
   languages text[] not null default '{}',
   goals text[] not null default '{}',
@@ -111,7 +110,11 @@ create table profiles (
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
+```
 
+> The live schema matches this (migration 004 renamed `full_name` → `display_name` and dropped `university_status`).
+
+```sql
 create table profile_nodes (
   profile_id uuid references profiles(id) on delete cascade,
   node_id uuid references graph_nodes(id) on delete cascade,
@@ -170,6 +173,8 @@ create policy "Public read verified opportunities" on opportunities for select
 -- no client-side insert policy exists, intentionally.
 ```
 
+**In the live DB, the reference tables are RLS-*disabled*** (`graph_nodes`, `graph_edges`, `opportunity_nodes`, `sources`, `ingestion_logs`): they're public/reference data that's only written via the service role (admin routes, ingestion), and the app reads them with the anon key for scoring/linking. Only the four user-facing tables above keep RLS on.
+
 ---
 
 ## 3. Recommendation engine
@@ -199,14 +204,13 @@ export async function getRecommendations(profileId: string, limit = 20) {
 
   const expandedNodeIds = await expandGraph(profileNodeIds, { hops: 2 });
   const candidates = await getOpportunitiesByNodes(expandedNodeIds);
-  const profile = await getProfile(profileId);
 
   const scored = candidates.map((opp) => {
-    const interest = interestScore(opp, profileNodeIds, expandedNodeIds);
-    const eligibility = eligibilityScore(opp, profile); // assumes validated eligibility JSON
+    const interest = interestScore(opp.matchedNodeNames, profileNodeNames, expandedNodeNames);
+    const eligibility = eligibilityScore(opp.eligibility); // assumes validated eligibility JSON
     const deadline = deadlineScore(opp.application_deadline);
-    const experience = experienceScore(opp, profile);
-    const popularity = popularityScore(opp);
+    const experience = experienceScore();
+    const popularity = popularityScore();
 
     const score =
       interest * WEIGHTS.interest +
@@ -231,6 +235,8 @@ export async function getRecommendations(profileId: string, limit = 20) {
 ```
 
 `eligibilityScore` assumes the `eligibility` jsonb column already matches the shape enforced at write time (Section 5). If a row is malformed, that's a data bug to fix at the source, not a runtime case to handle defensively here — matching the "throw errors, fail fast" rule rather than adding a fallback parser.
+
+**Current implementation status:** `eligibilityScore()` is a stub that always returns `SCORE_MAX` (100), and `experienceScore()` / `popularityScore()` always return half of `SCORE_MAX`. Real profile-vs-opportunity eligibility matching and interaction-fed popularity are not wired yet — see §8 for what's open.
 
 Start by computing scores on-demand per request. Materialize into a cached table only once you have evidence (query timing, not a hunch) that it's too slow — don't pre-build caching infrastructure for a load you don't have yet.
 
@@ -262,6 +268,7 @@ import { z } from 'zod';
 const ExtractedOpportunity = z.object({
   title: z.string().min(3),
   organization: z.string().min(2),
+  description: z.string().optional(),
   opportunity_type: z.enum([
     'scholarship','hackathon','olympiad','internship','summer_program',
     'conference','fellowship','competition','exchange','certification','grant',
@@ -285,6 +292,8 @@ const ExtractedOpportunity = z.object({
 const parsed = ExtractedOpportunity.parse(aiJsonOutput);
 ```
 
+**Implementation status:** this is built, not just a schema — `lib/extraction.ts` implements `extractFromUrl()` / `extractFromHtml()` (fetch page → Gemini 2.5 Flash prompt with `response_mime_type: application/json`, temperature 0.1 → Zod-validate each item, dropping malformed rows), and `/api/ingest/[sourceId]` feeds it. Only the `vercel.json` cron trigger is missing.
+
 New rows land with `status = 'pending_review'`. Nothing reaches a student's dashboard (`status = 'verified'`) without passing through the admin review screen described in Section 7. That single status field is your entire trust boundary between "AI extracted this" and "this is safe to recommend."
 
 **Source tiers**, matching the original doc:
@@ -298,26 +307,47 @@ New rows land with `status = 'pending_review'`. Nothing reaches a student's dash
 
 ```
 /app
-  /(marketing)/page.tsx
-  /dashboard/page.tsx              -- ranked feed
-  /opportunities/[slug]/page.tsx   -- detail + "why you're seeing this"
-  /profile/page.tsx
-  /admin/ingestion/page.tsx        -- pending_review queue, approve/reject
+  page.tsx                       -- marketing home
+  layout.tsx                     -- Nav + footer + ThemeProvider
+  login/page.tsx                 -- email/password, sign-up consent, "Check your email"
+  dashboard/page.tsx             -- ranked feed + Source Directory card
+  opportunities/[slug]/page.tsx  -- detail + "why you're seeing this" + Save button
+  profile/page.tsx               -- 4-step onboarding + account deletion
+  sources/page.tsx               -- full source directory
+  terms/page.tsx, privacy/page.tsx
+  admin/page.tsx                 -- landing
+  admin/ingestion/page.tsx       -- pending_review queue, approve/reject
+  admin/opportunities/new/page.tsx
+  admin/sources/new/page.tsx
+  auth/callback/route.ts         -- OAuth callback handler
+  auth/logout/route.ts           -- sign out endpoint
   /api
     /recommendations/route.ts
-    /opportunities/route.ts
-    /profile/route.ts
+    /opportunities/[slug]/route.ts  -- list endpoint (GET /api/opportunities) is a TODO
+    /profile/route.ts               -- GET/POST + DELETE (account deletion)
     /interactions/route.ts
-    /ingest/[sourceId]/route.ts    -- called by Vercel Cron, protected by CRON_SECRET
+    /admin/ingestion/route.ts
+    /admin/opportunities/route.ts
+    /admin/opportunities/[id]/route.ts
+    /admin/sources/route.ts
+    /ingest/[sourceId]/route.ts     -- for Vercel Cron, protected by CRON_SECRET
 /lib
-  /db.ts                -- single Supabase client init, no duplicate clients
-  /graph.ts             -- node expansion / traversal
-  /recommendations.ts   -- Section 3
-  /extraction.ts        -- Section 5
-  /explain.ts           -- Section 4
+  /db.ts                  -- browser Supabase client
+  /supabase/server.ts     -- server client (cookies)
+  /supabase/middleware.ts -- session refresh for middleware
+  /supabase/admin.ts      -- service-role client (admin routes + ingestion)
+  /graph.ts               -- node expansion / traversal
+  /recommendations.ts     -- Section 3
+  /extraction.ts          -- Section 5 (implemented)
+  /linking.ts             -- auto-link opportunities to graph nodes
+  /admin.ts               -- requireAdmin() gating
+  /explain.ts             -- Section 4
+  /types.ts, /constants.ts, /errors.ts, /utils.ts
 /supabase
-  /migrations/*.sql
+  /migrations/001..004.sql
 ```
+
+Notes on the current tree: `GET /api/opportunities` (list) doesn't exist yet — only the slug-based detail route does. `lib/mock-data.ts` is dead code and unused.
 
 Optional stretch, genuinely worth it for a hackathon demo: a `/graph` page with a force-directed visualization (e.g. `react-force-graph`) of a student's expanded node neighborhood. It's the single most legible way to show a judge *why* the system isn't "just another wrapper." Build it after Phase 0's core loop works, not before.
 
@@ -328,9 +358,10 @@ Optional stretch, genuinely worth it for a hackathon demo: a `/graph` page with 
 **Environment variables:**
 - `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` — client-side
 - `SUPABASE_SERVICE_ROLE_KEY` — server-only, used by `/api/ingest/*` and admin routes to write `opportunities`
-- `GEMINI_API_KEY` — extraction pipeline
+- `GEMINI_API_KEY` — extraction pipeline (implemented; needed by `lib/extraction.ts`)
 - `ANTHROPIC_API_KEY` — only if/when you build the Phase 1+ coaching feature
 - `CRON_SECRET` — checked in every `/api/ingest/*` route so it can't be triggered by anyone who finds the URL
+- `ADMIN_EMAIL` — gates `/admin/*` and `/api/admin/*` (must equal the Supabase user's email)
 
 **`vercel.json`:**
 ```json
@@ -341,31 +372,42 @@ Optional stretch, genuinely worth it for a hackathon demo: a `/graph` page with 
 }
 ```
 
+The `vercel.json` cron is **not deployed yet** — `/api/ingest/[sourceId]` works on demand, it just isn't scheduled.
+
 **Data quality note for Phase 1+:** once you have more than one source, you will get duplicate opportunities (the same scholarship listed on the university site and a Discord). Handle this with a single dedup check at insert time (fuzzy match on `title + organization`, flag as `pending_review` with a `duplicate_of` note) rather than building a separate dedup service — it's a five-line query, not a subsystem.
 
 ---
 
 ## 8. Phased build plan
 
-**Phase 0 — demoable core loop**
-- Hand-seed 50–150 real opportunities (manual entry or one-off AI extraction you review yourself)
-- Build the graph: 30–60 nodes covering the fields/skills/universities your seed data actually touches
-- Profile creation (short form + a couple of adaptive follow-up questions, not a 40-field wall)
-- Recommendation engine v1 exactly as in Section 3
-- Dashboard with visible score breakdown and explain() copy
-- Skip: automated scraping, admin review queue, email digests, graph visualization (unless time allows — see Section 6)
+**Phase 0 — demoable core loop** ✅ complete
+- [x] Hand-seeded real opportunities (15 in migration 001)
+- [x] Build the graph: 29 nodes covering fields/skills/universities + 11 category hubs (migrations 001, 003)
+- [x] Profile creation (4-step short form: Grade/Nickname/GPA → Interests → Languages → Goals)
+- [x] Recommendation engine v1 exactly as in Section 3
+- [x] Dashboard with visible score breakdown and explain() copy
+- Skips that later shipped anyway: automated scraping (Phase 1) and the admin review queue (Phase 1)
 
 **Phase 1 — real ingestion**
-- Tier 1 scraping for a handful of official sources, through the extraction pipeline in Section 5
-- Admin review UI (`/admin/ingestion`) to move rows from `pending_review` to `verified`
-- Interaction tracking (`saved`/`applied`/`dismissed`) feeding the popularity score
-- Weekly digest email (Resend + Vercel Cron) of new matches
+- [x] Tier 1 extraction for a handful of official sources — Gemini 2.5 Flash pipeline + `/api/ingest/[sourceId]` (Session 3)
+- [x] Admin review UI (`/admin/ingestion`) to move rows from `pending_review` to `verified`
+- [x] Interaction tracking (`saved`/`applied`/`dismissed`) — `POST /api/interactions` + Save button; the popularity score does **not** consume it yet (flat stub)
+- [ ] Weekly digest email (Resend + Vercel Cron)
+- [ ] `vercel.json` cron schedule (ingest route works on demand only)
+- [ ] Dedup at insert time (only slug-exact dedup exists so far; fuzzy `title + organization` is the plan)
 
-**Phase 2 — scale and community**
-- Tier 2 community sources with stricter review scrutiny
-- User-submitted opportunities with a moderation queue
-- Deadline reminders, basic trend analytics
-- Public read API over verified opportunities
+**Phase 1.5 — polish** (mostly done)
+- [x] Source Directory on dashboard + `/sources` page (Session 5)
+- [x] Save button wired to `POST /api/interactions` (Session 2)
+- [ ] Error boundaries / loading states — basic loading states exist; no error boundary components
+- [ ] `GET /api/opportunities` list endpoint — only slug-based detail exists
+- [ ] Google sign-in/up — provider not configured yet
+
+**Phase 2 — scale and community** 🔒 all open
+- [ ] Tier 2 community sources with stricter review scrutiny
+- [ ] User-submitted opportunities with a moderation queue
+- [ ] Deadline reminders, basic trend analytics
+- [ ] Public read API over verified opportunities
 
 ---
 
