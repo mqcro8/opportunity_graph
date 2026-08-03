@@ -34,6 +34,48 @@ export type ExtractedOpportunity = z.infer<typeof ExtractedOpportunity>;
 
 const GEMINI_MODEL = "gemini-2.5-flash";
 
+// Hard cap on the cleaned page text sent to Gemini. Keep generous — it applies
+// to readable text, not raw HTML, so real content survives the cut.
+const MAX_INPUT_CHARS = 150000;
+
+function decodeEntities(text: string): string {
+  return text
+    .replace(/&nbsp;/g, " ")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&apos;/g, "'")
+    .replace(/&#39;/g, "'")
+    .replace(/&#x([0-9a-fA-F]+);/g, (_, hex) => String.fromCodePoint(parseInt(hex, 16)))
+    .replace(/&#(\d+);/g, (_, dec) => String.fromCodePoint(parseInt(dec, 10)));
+}
+
+function extractPageTitle(html: string): string | null {
+  const match = html.match(/<title[^>]*>([\s\S]*?)<\/title>/i);
+  return match ? decodeEntities(match[1]).trim() : null;
+}
+
+// Converts raw HTML into readable text: block tags become paragraph breaks,
+// scripts/styles/comments are dropped, remaining tags are stripped, and HTML
+// entities are decoded. SPA/wrapper boilerplate (CSS, JS, inline JSON) never
+// reaches the model.
+function htmlToText(html: string): string {
+  const text = html
+    .replace(/<\/(p|div|li|ul|ol|h[1-6]|section|article|header|footer|tr|table|blockquote|pre)>/gi, "\n")
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<script[\s\S]*?<\/script>/gi, " ")
+    .replace(/<style[\s\S]*?<\/style>/gi, " ")
+    .replace(/<noscript[\s\S]*?<\/noscript>/gi, " ")
+    .replace(/<!--[\s\S]*?-->/g, " ")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/[^\S\n]+/g, " ")
+    .replace(/\n[ \t]+/g, "\n")
+    .replace(/\n{3,}/g, "\n\n");
+
+  return decodeEntities(text).trim();
+}
+
 function buildPrompt(pageTitle: string, pageContent: string): string {
   return `You are an extraction assistant for an educational opportunity database.
 Given the content of a web page, extract ALL educational opportunities listed on it.
@@ -55,7 +97,7 @@ Only include real, verifiable opportunities. Do not invent data.
 Page title: ${pageTitle}
 
 Page content:
-${pageContent.slice(0, 30000)}`;
+${pageContent.slice(0, MAX_INPUT_CHARS)}`;
 }
 
 export async function extractFromUrl(url: string): Promise<ExtractedOpportunity[]> {
@@ -75,7 +117,8 @@ export async function extractFromUrl(url: string): Promise<ExtractedOpportunity[
 
   const html = await response.text();
 
-  return extractFromHtml(url, html);
+  const pageTitle = extractPageTitle(html) ?? url;
+  return extractFromHtml(pageTitle, html);
 }
 
 export async function extractFromHtml(
@@ -87,7 +130,15 @@ export async function extractFromHtml(
     throw new Error("GEMINI_API_KEY is not set");
   }
 
-  const prompt = buildPrompt(pageTitle, html);
+  const pageText = htmlToText(html);
+
+  if (pageText.length < 100) {
+    throw new Error(
+      `Page "${pageTitle}" yielded no readable text after cleaning (${pageText.length} chars) — likely a JS-rendered page with no server-rendered content`
+    );
+  }
+
+  const prompt = buildPrompt(pageTitle, pageText);
 
   const geminiRes = await fetch(
     `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${apiKey}`,
