@@ -372,3 +372,21 @@ Motivation: with more opportunities and sources coming in, the admin/opportuniti
 - Filters/pagination live in the URL (`?status=…&type=…&tag=…&page=…` / `?tier=…&q=…&page=…`); changing a filter drops `page`.
 - The tag dropdown's "Open to All" etc. nodes are listed too — they're valid tags even if they never score.
 - Verified: `npm run lint` + `npm run build` pass; no deps, env vars, API (other than the extended GETs), or DB changes this session.
+
+---
+
+## Session 10 — ingestion extraction: nullable application_url + visible validation drops
+
+Diagnosis: the L'SPACE source (`https://www.lspace.asu.edu/our-programs`) reported `itemsFound: 0, itemsAdded: 0` with an empty `errors` array on every run. Reproduced the full pipeline (fetch → `htmlToText` → Gemini → Zod): the page is server-rendered Wix HTML yielding ~2.3k chars of readable text (well past the 100-char threshold, so not the "JS-rendered page" trap); Gemini correctly extracts all 5 programs; but every item was silently dropped by `ExtractedOpportunity.safeParse` because `application_url` was required (`z.string().url()`) while the page text has no per-program apply links — Gemini returned `null` rather than inventing URLs.
+
+**Schema** (`lib/extraction.ts`)
+- `application_url` is now `z.string().url().nullable()` — consistent with `delivery_mode`/`country`; the DB column (`application_url text`) was already nullable
+- Validation failures now `console.warn` the per-item zod issues instead of dropping them invisibly (the root cause of the silent 0s)
+
+**Ingestion route** (`app/api/ingest/[sourceId]/route.ts`)
+- Insert falls back to the scraped page URL when `application_url` is null (`opp.application_url ?? url`) so every row stays actionable for the admin review
+
+**Notes / actions for next session**
+- Verified: `npm run lint` + `npx tsc --noEmit` pass; no deps, env vars, or DB changes
+- Re-run the L'SPACE source (local or deployed) → expect `itemsFound: 5` (subject to slug dedup)
+- If a source still reports 0 with no errors, check server logs for the `console.warn` line — that surfaces dropped-opportunity reasons that were previously invisible

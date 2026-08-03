@@ -283,7 +283,7 @@ const ExtractedOpportunity = z.object({
   }),
   country: z.string().nullable(),
   delivery_mode: z.enum(['online','in_person','hybrid']).nullable(),
-  application_url: z.string().url(),
+  application_url: z.string().url().nullable(),  // null when the page has no apply link; ingest falls back to source_url
 });
 
 // If this throws, the item is logged to ingestion_logs.errors and skipped.
@@ -292,7 +292,7 @@ const ExtractedOpportunity = z.object({
 const parsed = ExtractedOpportunity.parse(aiJsonOutput);
 ```
 
-**Implementation status:** this is built, not just a schema — `lib/extraction.ts` implements `extractFromUrl()` / `extractFromHtml()` (fetch page → Gemini 2.5 Flash prompt with `response_mime_type: application/json`, temperature 0.1 → Zod-validate each item, dropping malformed rows), and `/api/ingest/[sourceId]` feeds it. Only the `vercel.json` cron trigger is missing.
+**Implementation status:** this is built, not just a schema — `lib/extraction.ts` implements `extractFromUrl()` / `extractFromHtml()` (fetch page → Gemini 2.5 Flash prompt with `response_mime_type: application/json`, temperature 0.1 → Zod-validate each item, `console.warn`-logging and skipping malformed rows), and `/api/ingest/[sourceId]` feeds it. `application_url` is nullable: when Gemini returns no apply link (a listing page without per-item URLs), the ingest route stores the scraped page URL instead — a data-completion convenience for the admin review screen, not a degraded extraction path, so it stays consistent with the "no fallbacks" rule in §9. Only the `vercel.json` cron trigger is missing.
 
 New rows land with `status = 'pending_review'`. Nothing reaches a student's dashboard (`status = 'verified'`) without passing through the admin review screen described in Section 7. That single status field is your entire trust boundary between "AI extracted this" and "this is safe to recommend."
 

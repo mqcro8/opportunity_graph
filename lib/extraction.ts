@@ -27,7 +27,7 @@ export const ExtractedOpportunity = z.object({
   }),
   country: z.string().nullable(),
   delivery_mode: z.enum(["online", "in_person", "hybrid"]).nullable(),
-  application_url: z.string().url(),
+  application_url: z.string().url().nullable(),
 });
 
 export type ExtractedOpportunity = z.infer<typeof ExtractedOpportunity>;
@@ -185,6 +185,11 @@ export async function extractFromHtml(
     const result = ExtractedOpportunity.safeParse(item);
     if (result.success) {
       results.push(result.data);
+    } else {
+      const issues = result.error.issues
+        .map((issue) => issue.path.join(".") + ": " + issue.message)
+        .join("; ");
+      console.warn(`Dropped invalid opportunity from "${pageTitle}": ${issues}`);
     }
   }
 

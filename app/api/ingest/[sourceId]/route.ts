@@ -79,7 +79,7 @@ export async function GET(
               country: opp.country,
               delivery_mode: opp.delivery_mode,
               source_url: url,
-              application_url: opp.application_url,
+              application_url: opp.application_url ?? url,
               status: "pending_review",
             })
             .select("id")
