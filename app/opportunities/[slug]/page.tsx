@@ -86,6 +86,18 @@ export default async function OpportunityPage({
     })
     .filter(Boolean) as string[];
 
+  const { data: allOppNodes } = await supabase
+    .from("opportunity_nodes")
+    .select("graph_nodes(name)")
+    .eq("opportunity_id", opportunity.id);
+
+  const tags = (allOppNodes ?? [])
+    .map((on) => {
+      const gn = on.graph_nodes as unknown as { name: string };
+      return gn?.name;
+    })
+    .filter(Boolean) as string[];
+
   const breakdown: ScoreBreakdown = {
     interest: interestScore(matchedNodes, profileNames, expandedNames),
     eligibility: eligibilityScore(opportunity.eligibility),
@@ -115,6 +127,7 @@ export default async function OpportunityPage({
     sourceUrl: opportunity.source_url,
     applicationUrl: opportunity.application_url ?? "",
     status: opportunity.status as ScoredOpportunity["opportunity"]["status"],
+    tags,
   };
 
   const explanation = explain({
@@ -148,11 +161,14 @@ export default async function OpportunityPage({
         <ScoreBreakdownUI breakdown={breakdown} total={total} />
       </div>
 
-      {matchedNodes.length > 0 && (
+      {tags.length > 0 && (
         <div className="mb-5 flex flex-wrap gap-1.5">
-          {matchedNodes.map((n) => (
-            <Badge key={n} variant="interest">
-              {n}
+          {tags.map((tag) => (
+            <Badge
+              key={tag}
+              variant={matchedNodes.includes(tag) ? "interest" : "muted"}
+            >
+              {tag}
             </Badge>
           ))}
         </div>

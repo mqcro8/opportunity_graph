@@ -58,12 +58,25 @@ export const NODE_KEYWORDS: Record<string, string[]> = {
   "environmental-science": ["environmental science", "ecology", "environment"],
   business: ["business", "marketing", "finance", "management"],
   medicine: ["medicine", "medical", "health"],
+  math: ["math", "mathematics", "maths", "calculus", "algebra", "geometry"],
+  physics: ["physics", "quantum", "mechanics", "optics"],
+  chemistry: ["chemistry", "chemical"],
+  biology: ["biology", "biotechnology", "genetics"],
+  economics: ["economics", "economy", "financial", "finance"],
+  history: ["history", "historical"],
+  writing: ["writing", "essay", "poetry", "creative writing", "author"],
+  debate: ["debate", "moot court", "model un", "oratory"],
+  design: ["design", "ui", "ux", "graphic design", "illustration", "animation"],
+  leadership: ["leadership", "student council", "community leader"],
+  music: ["music", "orchestra", "choir", "instrument"],
+  "art-design": ["art", "fine arts", "visual arts", "creative"],
+  literature: ["literature", "literary", "novel", "book"],
   mit: ["mit", "massachusetts institute of technology"],
   stanford: ["stanford"],
   "georgia-tech": ["georgia tech", "georgia-tech"],
   "latin-america": ["latin america", "latin american"],
   "north-america": ["north america"],
-  global: ["global"],
+  global: ["global", "worldwide", "international"],
 };
 
 // Profile goals -> graph node slugs. Goals are opportunity-category interests,
@@ -73,7 +86,12 @@ export const GOAL_NODE_MAP: Record<string, string[]> = {
   "Join a hackathon": ["hackathons", "python", "javascript", "web-development", "computer-science"],
   "Find a summer program": ["summer-programs"],
   "Compete in an olympiad": ["olympiads", "research"],
+  "Compete in a competition": ["competitions"],
   "Get an internship": ["internships"],
+  "Get a fellowship": ["fellowships", "research"],
+  "Find a conference": ["conferences", "research"],
+  "Earn a certification": ["certifications"],
+  "Get a grant": ["grants", "research"],
   "Study abroad": ["exchanges"],
   "Do research": ["research"],
   "Start a company": ["entrepreneurship", "business"],
@@ -94,20 +112,32 @@ export interface OpportunityLinkFields {
   opportunity_type: OpportunityType;
 }
 
-// Links an opportunity to its category hub plus any graph nodes matched from
-// its text. Inserts are idempotent (on conflict do nothing). Returns the
-// names of the linked nodes for display in UIs.
-export async function linkOpportunityToNodes(
-  admin: SupabaseClient,
-  opportunityId: string,
-  fields: OpportunityLinkFields
-): Promise<string[]> {
+// Pure auto-link suggestions: category default nodes plus any graph nodes
+// matched from the opportunity's text via NODE_KEYWORDS.
+export function suggestNodeSlugs(fields: OpportunityLinkFields): string[] {
   const slugs = new Set<string>(TYPE_DEFAULT_NODES[fields.opportunity_type]);
 
   const text = [fields.title, fields.organization, fields.description ?? ""].join(" ");
   for (const [slug, keywords] of Object.entries(NODE_KEYWORDS)) {
     if (matchesAnyKeyword(text, keywords)) slugs.add(slug);
   }
+
+  return [...slugs];
+}
+
+// Links an opportunity to graph nodes. When explicitSlugs is provided it is
+// authoritative — the opportunity gets exactly those nodes plus its category
+// hub, so admins can hand-tag. Without it, auto-link suggestions are used
+// (the ingestion pipeline path). Inserts are idempotent. Returns the names
+// of the linked nodes for display in UIs.
+export async function linkOpportunityToNodes(
+  admin: SupabaseClient,
+  opportunityId: string,
+  fields: OpportunityLinkFields,
+  explicitSlugs?: string[]
+): Promise<string[]> {
+  const slugs = new Set<string>(explicitSlugs ?? suggestNodeSlugs(fields));
+  slugs.add(CATEGORY_SLUG[fields.opportunity_type]);
 
   if (slugs.size === 0) return [];
 

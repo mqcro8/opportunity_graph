@@ -18,42 +18,24 @@ const GRADE_OPTIONS = [
   "Graduate",
 ];
 
-const INTEREST_OPTIONS = [
-  "Artificial Intelligence",
-  "Robotics",
-  "Web Development",
-  "Data Analysis",
-  "Climate Science",
-  "Biomedical Engineering",
-  "Entrepreneurship",
-  "Social Impact",
-  "Space Exploration",
-  "Research",
-  "Public Speaking",
-  "Technical Writing",
-];
-
-const LANGUAGE_OPTIONS = [
-  "English",
-  "Spanish",
-  "Mandarin",
-  "French",
-  "German",
-  "Portuguese",
-  "Arabic",
-  "Hindi",
-];
-
 const GOAL_OPTIONS = [
   "Get a scholarship",
   "Join a hackathon",
   "Find a summer program",
   "Compete in an olympiad",
+  "Compete in a competition",
   "Get an internship",
+  "Get a fellowship",
+  "Find a conference",
+  "Earn a certification",
+  "Get a grant",
   "Study abroad",
   "Do research",
   "Start a company",
 ];
+
+const INTEREST_NODE_TYPES = ["skill", "interest", "field"];
+const LANGUAGE_NODE_TYPE = "language";
 
 export default function ProfilePage() {
   const [step, setStep] = useState(0);
@@ -70,7 +52,34 @@ export default function ProfilePage() {
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [interestOptions, setInterestOptions] = useState<string[]>([]);
+  const [languageOptions, setLanguageOptions] = useState<string[]>([]);
   const router = useRouter();
+
+  useEffect(() => {
+    async function loadOptions() {
+      const supabase = createClient();
+      const { data } = await supabase
+        .from("graph_nodes")
+        .select("name, type")
+        .in("type", [...INTEREST_NODE_TYPES, LANGUAGE_NODE_TYPE]);
+
+      if (!data) return;
+      setInterestOptions(
+        data
+          .filter((n) => INTEREST_NODE_TYPES.includes(n.type))
+          .map((n) => n.name)
+          .sort((a, b) => a.localeCompare(b))
+      );
+      setLanguageOptions(
+        data
+          .filter((n) => n.type === LANGUAGE_NODE_TYPE)
+          .map((n) => n.name)
+          .sort((a, b) => a.localeCompare(b))
+      );
+    }
+    loadOptions();
+  }, []);
 
   useEffect(() => {
     async function loadProfile() {
@@ -101,17 +110,23 @@ export default function ProfilePage() {
 
       const { data: profileNodes } = await supabase
         .from("profile_nodes")
-        .select("graph_nodes(name)")
+        .select("graph_nodes(name, type)")
         .eq("profile_id", user.id);
 
       if (profileNodes && profileNodes.length > 0) {
-        const names = profileNodes
-          .map((pn) => {
-            const gn = pn.graph_nodes as unknown as { name: string };
-            return gn?.name;
-          })
-          .filter(Boolean);
-        setInterests(names);
+        const nodes = profileNodes
+          .map((pn) => pn.graph_nodes as unknown as { name: string; type: string } | null)
+          .filter((n): n is { name: string; type: string } => n !== null);
+        setInterests(
+          nodes
+            .filter((n) => INTEREST_NODE_TYPES.includes(n.type))
+            .map((n) => n.name)
+        );
+        setLanguages(
+          nodes
+            .filter((n) => n.type === LANGUAGE_NODE_TYPE)
+            .map((n) => n.name)
+        );
       }
 
       setLoading(false);
@@ -205,9 +220,9 @@ export default function ProfilePage() {
     step === 0
       ? GRADE_OPTIONS
       : step === 1
-        ? INTEREST_OPTIONS
+        ? interestOptions
         : step === 2
-          ? LANGUAGE_OPTIONS
+          ? languageOptions
           : GOAL_OPTIONS;
 
   const currentSelections =
