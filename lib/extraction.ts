@@ -17,7 +17,10 @@ export const ExtractedOpportunity = z.object({
     "certification",
     "grant",
   ]),
-  application_deadline: z.string().date().nullable(),
+  registration_opens: z.string().date().nullish(),
+  registration_deadline: z.string().date().nullable(),
+  event_start_date: z.string().date().nullish(),
+  event_end_date: z.string().date().nullish(),
   eligibility: z.object({
     min_grade: z.string().nullable(),
     max_grade: z.string().nullable(),
@@ -85,7 +88,10 @@ For each opportunity, return a JSON object with these fields:
 - organization (string, min 2 chars): the organization offering it
 - description (string, optional): a short summary of what the opportunity is about
 - opportunity_type: one of "scholarship", "hackathon", "olympiad", "internship", "summer_program", "conference", "fellowship", "competition", "exchange", "certification", "grant"
-- application_deadline (ISO date string or null): the deadline in YYYY-MM-DD format, or null if unknown
+- registration_opens (ISO date string or null): the date registration opens, in YYYY-MM-DD format, or null if unknown or not applicable
+- registration_deadline (ISO date string or null): the deadline to register or apply, in YYYY-MM-DD format, or null if unknown
+- event_start_date (ISO date string or null): the date the event runs from, only for events with a fixed period (hackathons, game jams, conferences, competitions), otherwise null
+- event_end_date (ISO date string or null): the date the event runs until, only for events with a fixed period (hackathons, game jams, conferences, competitions), otherwise null
 - eligibility (object with): min_grade (string or null), max_grade (string or null), countries (array of strings, use ["*"] if global), age_min (number or null), age_max (number or null)
 - country (string or null): where the opportunity takes place
 - delivery_mode: "online", "in_person", "hybrid", or null

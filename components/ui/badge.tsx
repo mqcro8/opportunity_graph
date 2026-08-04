@@ -8,6 +8,7 @@ const badgeVariants = cva("inline-flex items-center gap-1 rounded-md px-2.5 py-0
       default: "bg-secondary text-secondary-foreground",
       interest: "bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-300",
       deadline: "bg-amber-50 text-amber-700 dark:bg-amber-950 dark:text-amber-300",
+      active: "bg-green-50 text-green-700 dark:bg-green-950 dark:text-green-300",
       muted: "border border-border text-muted-foreground",
     },
   },

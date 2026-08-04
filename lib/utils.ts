@@ -37,3 +37,57 @@ export function getDeadlineInfo(dateStr: string | null): { label: string; urgent
   const months = Math.round(days / 30);
   return { label: `${months} month${months > 1 ? "s" : ""} left`, urgent: false };
 }
+
+export interface DateDisplay {
+  active: boolean;
+  deadlineLabel: string | null;
+  deadlineUrgent: boolean;
+  eventLabel: string | null;
+}
+
+// Single deterministic path from the flexible date fields to what a user sees.
+// The "active" state is derived at render time — nothing is persisted.
+export function getDateDisplay(dates: {
+  registrationOpens: string | null;
+  registrationDeadline: string | null;
+  eventStartDate: string | null;
+  eventEndDate: string | null;
+}): DateDisplay {
+  const now = Date.now();
+  const start = dates.eventStartDate ? new Date(dates.eventStartDate).getTime() : null;
+  const end = dates.eventEndDate ? new Date(dates.eventEndDate).getTime() : null;
+  const active = start !== null && end !== null && now >= start && now <= end;
+
+  if (dates.registrationOpens && now < new Date(dates.registrationOpens).getTime()) {
+    return {
+      active: false,
+      deadlineLabel: null,
+      deadlineUrgent: false,
+      eventLabel: `Opens ${formatDate(dates.registrationOpens)}`,
+    };
+  }
+
+  if (dates.registrationDeadline && now <= new Date(dates.registrationDeadline).getTime()) {
+    const { label, urgent } = getDeadlineInfo(dates.registrationDeadline);
+    return { active, deadlineLabel: label, deadlineUrgent: urgent, eventLabel: null };
+  }
+
+  if (start !== null && now < start) {
+    return {
+      active: false,
+      deadlineLabel: null,
+      deadlineUrgent: false,
+      eventLabel: `Starts ${formatDate(dates.eventStartDate)}`,
+    };
+  }
+
+  if (end !== null && now > end) {
+    return { active: false, deadlineLabel: null, deadlineUrgent: false, eventLabel: "Ended" };
+  }
+
+  if (active) {
+    return { active: true, deadlineLabel: null, deadlineUrgent: false, eventLabel: null };
+  }
+
+  return { active: false, deadlineLabel: null, deadlineUrgent: false, eventLabel: "No deadline" };
+}

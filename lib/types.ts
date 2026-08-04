@@ -21,7 +21,10 @@ export interface Opportunity {
   organization: string;
   description: string;
   opportunityType: OpportunityType;
-  applicationDeadline: string | null; // ISO date
+  registrationOpens: string | null; // ISO date
+  registrationDeadline: string | null; // ISO date
+  eventStartDate: string | null; // ISO date
+  eventEndDate: string | null; // ISO date
   country: string | null;
   deliveryMode: "online" | "in_person" | "hybrid" | null;
   sourceUrl: string;
