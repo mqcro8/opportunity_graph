@@ -34,7 +34,10 @@ export interface OpportunityFormValues {
   organization: string;
   description: string;
   opportunity_type: string;
-  application_deadline: string;
+  registration_opens: string;
+  registration_deadline: string;
+  event_start_date: string;
+  event_end_date: string;
   country: string;
   delivery_mode: string;
   application_url: string;
@@ -54,7 +57,10 @@ export function emptyFormValues(): OpportunityFormValues {
     organization: "",
     description: "",
     opportunity_type: "hackathon",
-    application_deadline: "",
+    registration_opens: "",
+    registration_deadline: "",
+    event_start_date: "",
+    event_end_date: "",
     country: "",
     delivery_mode: "",
     application_url: "",
@@ -74,7 +80,10 @@ export interface OpportunityDbRow {
   organization?: unknown;
   description?: unknown;
   opportunity_type?: unknown;
-  application_deadline?: unknown;
+  registration_opens?: unknown;
+  registration_deadline?: unknown;
+  event_start_date?: unknown;
+  event_end_date?: unknown;
   country?: unknown;
   delivery_mode?: unknown;
   application_url?: unknown;
@@ -100,7 +109,10 @@ export function dbToForm(
     organization: String(opp.organization ?? ""),
     description: String(opp.description ?? ""),
     opportunity_type: String(opp.opportunity_type ?? "hackathon"),
-    application_deadline: String(opp.application_deadline ?? ""),
+    registration_opens: String(opp.registration_opens ?? ""),
+    registration_deadline: String(opp.registration_deadline ?? ""),
+    event_start_date: String(opp.event_start_date ?? ""),
+    event_end_date: String(opp.event_end_date ?? ""),
     country: String(opp.country ?? ""),
     delivery_mode: String(opp.delivery_mode ?? ""),
     application_url: String(opp.application_url ?? ""),
@@ -121,7 +133,10 @@ function buildPayload(values: OpportunityFormValues) {
     organization: values.organization,
     description: values.description || undefined,
     opportunity_type: values.opportunity_type,
-    application_deadline: values.application_deadline || null,
+    registration_opens: values.registration_opens || null,
+    registration_deadline: values.registration_deadline || null,
+    event_start_date: values.event_start_date || null,
+    event_end_date: values.event_end_date || null,
     country: values.country || null,
     delivery_mode: values.delivery_mode || null,
     application_url: values.application_url || null,
@@ -282,12 +297,39 @@ export const OpportunityForm = forwardRef<
           </Field>
 
           <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="Application deadline">
+            <Field label="Registration opens" hint="When registration opens, if it hasn't yet.">
               <input
                 type="date"
                 className={inputClass}
-                value={values.application_deadline}
-                onChange={(e) => set("application_deadline", e.target.value)}
+                value={values.registration_opens}
+                onChange={(e) => set("registration_opens", e.target.value)}
+              />
+            </Field>
+
+            <Field label="Registration deadline">
+              <input
+                type="date"
+                className={inputClass}
+                value={values.registration_deadline}
+                onChange={(e) => set("registration_deadline", e.target.value)}
+              />
+            </Field>
+
+            <Field label="Event start date" hint="Only for events with a fixed period (hackathons, jams, conferences).">
+              <input
+                type="date"
+                className={inputClass}
+                value={values.event_start_date}
+                onChange={(e) => set("event_start_date", e.target.value)}
+              />
+            </Field>
+
+            <Field label="Event end date">
+              <input
+                type="date"
+                className={inputClass}
+                value={values.event_end_date}
+                onChange={(e) => set("event_end_date", e.target.value)}
               />
             </Field>
 

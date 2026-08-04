@@ -31,7 +31,7 @@ Phase 0 (core loop) is complete and **V1 has shipped** — the app is live at ht
 - `lib/admin.ts` — `requireAdmin()` gating (`ADMIN_EMAIL`); middleware redirects for all `/admin/*`
 - `lib/errors.ts` — `EmptyProfileError` (thrown when profile has no graph nodes)
 - `lib/constants.ts` — `SCORE_MAX` shared between server and client, plus `OPPORTUNITY_TYPES`, `SOURCE_TIERS`, and `PAGE_SIZE` (10) for the filter/pagination UI (Session 9)
-- `lib/utils.ts` — `cn`, `slugify`, `formatDate`, `getDeadlineInfo`
+- `lib/utils.ts` — `cn`, `slugify`, `formatDate`, `getDeadlineInfo`, `getDateDisplay` (derives the "Active" / "Opens …" / "Starts …" / "Ended" state from the flexible date fields; also used by `OpportunityRow`)
 
 **API routes**
 - `GET/POST /api/profile` — Read/upsert profile + linked graph nodes; `DELETE` deletes the Supabase account (cascades wipe profile data)

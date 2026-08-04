@@ -3,10 +3,12 @@ import { Clock } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
 import { ScoredOpportunity } from "@/lib/types";
-import { getDeadlineInfo } from "@/lib/utils";
+import { getDateDisplay } from "@/lib/utils";
 
 export function OpportunityRow({ rec }: { rec: ScoredOpportunity }) {
-  const { label, urgent } = getDeadlineInfo(rec.opportunity.applicationDeadline);
+  const { active, deadlineLabel, deadlineUrgent, eventLabel } = getDateDisplay(
+    rec.opportunity
+  );
   const tags =
     rec.opportunity.tags.length > 0 ? rec.opportunity.tags : rec.matchedNodes;
 
@@ -30,10 +32,14 @@ export function OpportunityRow({ rec }: { rec: ScoredOpportunity }) {
             {tag}
           </Badge>
         ))}
-        <Badge variant={urgent ? "deadline" : "muted"}>
-          {urgent && <Clock className="h-3 w-3" />}
-          {label}
-        </Badge>
+        {deadlineLabel && (
+          <Badge variant={deadlineUrgent ? "deadline" : "muted"}>
+            {deadlineUrgent && <Clock className="h-3 w-3" />}
+            {deadlineLabel}
+          </Badge>
+        )}
+        {active && <Badge variant="active">Active</Badge>}
+        {eventLabel && !active && <Badge variant="muted">{eventLabel}</Badge>}
       </div>
       <p className="mb-3 text-sm text-muted-foreground">{rec.explanation}</p>
       <Link

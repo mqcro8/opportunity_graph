@@ -21,7 +21,10 @@ interface DbOpportunity {
   organization: string;
   description: string | null;
   opportunity_type: string;
-  application_deadline: string | null;
+  registration_opens: string | null;
+  registration_deadline: string | null;
+  event_start_date: string | null;
+  event_end_date: string | null;
   eligibility: Record<string, unknown>;
   country: string | null;
   delivery_mode: string | null;
@@ -56,14 +59,25 @@ export function eligibilityScore(eligibility: Record<string, unknown>): number {
     return SCORE_MAX.eligibility;
   }
 
-  return SCORE_MAX.eligibility;
+  return Math.round(SCORE_MAX.eligibility * 0.5);
 }
 
-export function deadlineScore(deadline: string | null): number {
+export function deadlineScore(dates: {
+  registrationOpens: string | null;
+  registrationDeadline: string | null;
+  eventEndDate: string | null;
+}): number {
+  const now = Date.now();
+
+  if (dates.registrationOpens && now < new Date(dates.registrationOpens).getTime()) {
+    return Math.round(SCORE_MAX.deadline * 0.5);
+  }
+
+  const deadline = dates.registrationDeadline ?? dates.eventEndDate;
   if (!deadline) return Math.round(SCORE_MAX.deadline * 0.5);
 
   const days = Math.ceil(
-    (new Date(deadline).getTime() - Date.now()) / 86400000
+    (new Date(deadline).getTime() - now) / 86400000
   );
 
   if (days < 0) return 0;
@@ -160,7 +174,11 @@ export async function getRecommendations(
 
     const interest = interestScore(matchedNodes, profileNames, expandedNames);
     const eligibility = eligibilityScore(opp.eligibility);
-    const deadline = deadlineScore(opp.application_deadline);
+    const deadline = deadlineScore({
+      registrationOpens: opp.registration_opens,
+      registrationDeadline: opp.registration_deadline,
+      eventEndDate: opp.event_end_date,
+    });
     const experience = experienceScore();
     const popularity = popularityScore();
 
@@ -188,7 +206,10 @@ export async function getRecommendations(
         organization: opp.organization,
         description: opp.description ?? "",
         opportunityType: opp.opportunity_type as ScoredOpportunity["opportunity"]["opportunityType"],
-        applicationDeadline: opp.application_deadline,
+        registrationOpens: opp.registration_opens,
+        registrationDeadline: opp.registration_deadline,
+        eventStartDate: opp.event_start_date,
+        eventEndDate: opp.event_end_date,
         country: opp.country,
         deliveryMode: opp.delivery_mode as ScoredOpportunity["opportunity"]["deliveryMode"],
         sourceUrl: opp.source_url,

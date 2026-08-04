@@ -15,6 +15,7 @@ import {
   WEIGHTS,
 } from "@/lib/recommendations";
 import type { ScoredOpportunity, ScoreBreakdown } from "@/lib/types";
+import { formatDate } from "@/lib/utils";
 
 export default async function OpportunityPage({
   params,
@@ -101,7 +102,11 @@ export default async function OpportunityPage({
   const breakdown: ScoreBreakdown = {
     interest: interestScore(matchedNodes, profileNames, expandedNames),
     eligibility: eligibilityScore(opportunity.eligibility),
-    deadline: deadlineScore(opportunity.application_deadline),
+    deadline: deadlineScore({
+      registrationOpens: opportunity.registration_opens,
+      registrationDeadline: opportunity.registration_deadline,
+      eventEndDate: opportunity.event_end_date,
+    }),
     experience: experienceScore(),
     popularity: popularityScore(),
   };
@@ -121,7 +126,10 @@ export default async function OpportunityPage({
     organization: opportunity.organization,
     description: opportunity.description ?? "",
     opportunityType: opportunity.opportunity_type as ScoredOpportunity["opportunity"]["opportunityType"],
-    applicationDeadline: opportunity.application_deadline,
+    registrationOpens: opportunity.registration_opens,
+    registrationDeadline: opportunity.registration_deadline,
+    eventStartDate: opportunity.event_start_date,
+    eventEndDate: opportunity.event_end_date,
     country: opportunity.country,
     deliveryMode: opportunity.delivery_mode as ScoredOpportunity["opportunity"]["deliveryMode"],
     sourceUrl: opportunity.source_url,
@@ -155,6 +163,21 @@ export default async function OpportunityPage({
       <p className="mb-5 text-sm text-muted-foreground">
         Hosted by {opportunity.organization} ·{" "}
         {opportunity.delivery_mode?.replace("_", " ")}
+      </p>
+
+      <p className="mb-5 text-xs text-muted-foreground">
+        {opportunity.registration_opens && (
+          <span>Registration opens {formatDate(opportunity.registration_opens)} · </span>
+        )}
+        {opportunity.registration_deadline && (
+          <span>Deadline {formatDate(opportunity.registration_deadline)} · </span>
+        )}
+        {opportunity.event_start_date && opportunity.event_end_date && (
+          <span>
+            Event runs {formatDate(opportunity.event_start_date)}–{formatDate(opportunity.event_end_date)} ·{" "}
+          </span>
+        )}
+        <span>Always verify dates on the official site.</span>
       </p>
 
       <div className="mb-5">
