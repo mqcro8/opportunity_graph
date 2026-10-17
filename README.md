@@ -12,6 +12,8 @@ The problem wasn't motivation. It was discovery.
 
 Information was scattered across university websites, organization pages, Discord servers, newsletters, and social media. Sometimes, I discovered an opportunity that was a perfect fit only after its application deadline had passed.
 
+I kept thinking there had to be a better way to find these opportunities before it was too late.
+
 Opportunity Graph is my attempt to build the platform I wish I had back then.
 
 ## How It Works
