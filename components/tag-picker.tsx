@@ -31,6 +31,7 @@ const CREATE_TYPES = [
   "field",
   "region",
   "language",
+  "university",
   "audience",
 ];
 

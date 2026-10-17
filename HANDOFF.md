@@ -39,6 +39,7 @@ Phase 0 (core loop) is complete and **V1 has shipped** — the app is live at ht
 - `POST /api/interactions` — Track saved/applied/dismissed
 - `GET /api/opportunities/[slug]` — Single opportunity with matched nodes
 - `GET|POST /api/ingest/[sourceId]` — Ingestion endpoint protected by `CRON_SECRET`
+- `GET|POST /api/cron/expire-opportunities` — Daily cron that archives verified opportunities whose `registration_deadline` or `event_end_date` has passed (Session 11)
 - `GET /api/admin/ingestion` — Review queue with server-side filters + pagination (`status`, `type`, `tag`, `page`, `pageSize`; returns `{ queue, total, page, pageSize }`) (Session 9)
 - `POST /api/admin/opportunities` + `PATCH /api/admin/opportunities/[id]` — Create verified opportunity (auto-links nodes or accepts explicit `tags`) / approve-reject status
 - `GET /api/admin/opportunities` + `GET|PUT /api/admin/opportunities/[id]` — List with the same `status`/`type`/`tag`/`page`/`pageSize` filters (count via `{ count: "exact" }` + `.range()`) for the edit index; full edit incl. tags (Session 6; pagination/filters Session 9)
@@ -81,6 +82,7 @@ Phase 0 (core loop) is complete and **V1 has shipped** — the app is live at ht
 - [x] Wire Gemini Flash extraction pipeline — `lib/extraction.ts` has the real API call (`extractFromUrl`/`extractFromHtml`, Gemini 2.5 Flash, temperature 0.1, `response_mime_type: application/json`) + prompt, not just the schema. Shipped in Session 3.
 - [x] `/api/ingest/[sourceId]/route.ts` — Ingestion endpoint protected by `CRON_SECRET` (query param or header; passes through when the env var is unset). Ships as `pending_review`, logs to `ingestion_logs`, updates `sources.last_run_at`. Tested on MLH in Session 3. No cron schedule yet — see next item.
 - [ ] `vercel.json` with cron schedule for tier 1 sources — ingest route exists but nothing triggers it on a schedule yet
+- [ ] ⚠️ **DEPLOY the expire-opportunities cron** — `vercel.json` + `/api/cron/expire-opportunities` are in the tree (Session 11) but the cron only fires on the `production` environment. Push to `master` to activate; confirm in Vercel Dashboard (Settings → Cron Jobs) and/or check the daily run.
 - [ ] Interaction tracking feeding the popularity score — `POST /api/interactions` and the Save button exist, but `popularityScore()` is still a flat 50/100 stub (`lib/recommendations.ts:80`)
 - [ ] Weekly digest email (Resend + Vercel Cron)
 
@@ -390,3 +392,30 @@ Diagnosis: the L'SPACE source (`https://www.lspace.asu.edu/our-programs`) report
 - Verified: `npm run lint` + `npx tsc --noEmit` pass; no deps, env vars, or DB changes
 - Re-run the L'SPACE source (local or deployed) → expect `itemsFound: 5` (subject to slug dedup)
 - If a source still reports 0 with no errors, check server logs for the `console.warn` line — that surfaces dropped-opportunity reasons that were previously invisible
+
+---
+
+## Session 11 — auto-archive expired opportunities via Vercel Cron
+
+Problem: finished/can't-enroll events stayed in the feed forever. `deadlineScore` gives them 0 but they're never filtered out (`getRecommendations` only filters `eligibility > 0`). Considered hard-deleting and client-side cleanup and rejected both: hard `DELETE` cascades to `interactions` (wiping users' saved/applied history, `001_initial_schema.sql` FK), and clients can't write to `opportunities` at all (no RLS write policy; writes are service-role-only).
+
+**Decision: auto-archive, don't delete.** The `archived` status already exists and every user-facing read path filters on `status = 'verified'` (RLS public-read policy, `getRecommendations`, slug detail route), so archiving makes an opportunity disappear everywhere instantly while keeping the row + interaction history for admins.
+
+**Cron route** (`app/api/cron/expire-opportunities/route.ts`, new)
+- GET + POST, protected by `verifyCron()` — accepts Vercel's automatic `x-vercel-cron` header (cron can't attach query params/headers in `vercel.json`), plus the existing `CRON_SECRET` query/header pattern for manual testing
+- Uses the service-role admin client to run one UPDATE:
+  - `status = 'archived'`, `last_verified_at = now()` where `status = 'verified'` AND (`registration_deadline < now` OR `event_end_date < now`)
+  - PostgREST `.lt` filters skip `NULL` dates naturally, so events with no deadline/end date and future `registration_opens` are untouched; `pending_review` rows are untouched too
+- Returns `{ ok: true, archived: <count> }`
+
+**Schedule** (`vercel.json`, new)
+- `"crons": [{ "path": "/api/cron/expire-opportunities", "schedule": "0 2 * * *" }]` — daily at 02:00 UTC
+
+**No DB migration** — reuses the existing `archived` status and status filters.
+
+**Notes / actions for next session**
+- ⚠️ **The cron isn't live until `master` is deployed** — Vercel cron only fires on the `production` environment. After the next push, confirm it in the Vercel Dashboard (Settings → Cron Jobs) or wait for a run.
+- Manual test without the cron: `GET /api/cron/expire-opportunities?cron_secret=<CRON_SECRET>` (local or preview) against an opportunity with a past `registration_deadline`/`event_end_date` — expect it to flip to `archived` and vanish from `/dashboard`.
+- Expired and manually-rejected rows share the `archived` status — indistinguishable in the admin list today. Acceptable; a dedicated `expired` status + migration is a follow-up if it matters.
+- Recurring annual events get archived each cycle; re-verify via `PATCH /api/admin/opportunities/[id]`.
+- Verified: `npm run lint` + `npx tsc --noEmit` pass; no deps, env vars, or DB changes.
