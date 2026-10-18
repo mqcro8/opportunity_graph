@@ -159,7 +159,7 @@ export default async function OpportunityPage({
       <p className="mb-1 text-xs text-muted-foreground">
         {opportunity.opportunity_type.replace("_", " ")} · {opportunity.country}
       </p>
-      <h1 className="mb-1 text-xl font-medium">{opportunity.title}</h1>
+      <h1 className="mb-1 page-title">{opportunity.title}</h1>
       <p className="mb-5 text-sm text-muted-foreground">
         Hosted by {opportunity.organization} ·{" "}
         {opportunity.delivery_mode?.replace("_", " ")}

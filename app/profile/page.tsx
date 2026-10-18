@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
+import { Chip } from "@/components/ui/chip";
 import { cn } from "@/lib/utils";
 import { createClient } from "@/lib/db";
 
@@ -246,7 +246,7 @@ export default function ProfilePage() {
               key={i}
               className={cn(
                 "h-1 flex-1 rounded-full",
-                i < step ? "bg-blue-500" : i === step ? "bg-blue-300" : "bg-secondary"
+                i < step ? "bg-accent" : i === step ? "bg-accent/40" : "bg-secondary"
               )}
             />
           ))}
@@ -299,9 +299,9 @@ export default function ProfilePage() {
                   key={option}
                   onClick={() => setGrade(option)}
                   className={cn(
-                    "w-full rounded-lg border px-4 py-3 text-left text-sm transition-colors",
+                    "focus-ring w-full rounded-lg border px-4 py-3 text-left text-sm transition-colors",
                     grade === option
-                      ? "border-blue-500 bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-300"
+                      ? "border-accent bg-accent-muted text-accent-muted-foreground"
                       : "border-border text-muted-foreground hover:border-foreground/30"
                   )}
                 >
@@ -315,8 +315,10 @@ export default function ProfilePage() {
             {currentOptions.map((option) => {
               const selected = currentSelections.includes(option);
               return (
-                <button
+                <Chip
                   key={option}
+                  selected={selected}
+                  className="px-3.5 py-1.5 text-sm"
                   onClick={() => {
                     (setCurrentSelections as (v: string[]) => void)(
                       selected
@@ -324,15 +326,9 @@ export default function ProfilePage() {
                         : [...currentSelections, option]
                     );
                   }}
-                  className={cn(
-                    "rounded-full border px-3.5 py-1.5 text-sm transition-colors",
-                    selected
-                      ? "border-blue-500 bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-300"
-                      : "border-border text-muted-foreground hover:border-foreground/30"
-                  )}
                 >
                   {option}
-                </button>
+                </Chip>
               );
             })}
           </div>

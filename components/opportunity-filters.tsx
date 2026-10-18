@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { OPPORTUNITY_TYPES } from "@/lib/constants";
 import { inputClass } from "@/components/ui/field";
 import { Badge } from "@/components/ui/badge";
+import { Chip } from "@/components/ui/chip";
 import { cn } from "@/lib/utils";
 import { TYPE_LABELS, TYPE_ORDER } from "@/components/tag-picker";
 
@@ -122,19 +123,13 @@ export function OpportunityFilters({
                     .map((node) => {
                       const isSelected = node.slug === tag;
                       return (
-                        <button
+                        <Chip
                           key={node.slug}
-                          type="button"
+                          selected={isSelected}
                           onClick={() => onTagChange(isSelected ? "" : node.slug)}
-                          className={cn(
-                            "rounded-full border px-3 py-1 text-xs transition-colors",
-                            isSelected
-                              ? "border-blue-500 bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-300"
-                              : "border-border text-muted-foreground hover:border-foreground/30"
-                          )}
                         >
                           {node.name}
-                        </button>
+                        </Chip>
                       );
                     })}
                 </div>

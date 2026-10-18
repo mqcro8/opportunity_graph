@@ -210,6 +210,10 @@ export default async function DashboardPage({
 
   return (
     <div>
+      <h1 className="page-title">Your matches</h1>
+      <p className="page-lede mb-6">
+        Ranked recommendations based on your profile. Click any opportunity to see why it matches.
+      </p>
       {content}
       <SourceDirectory sources={directorySources} showFullListLink />
     </div>

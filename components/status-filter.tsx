@@ -1,6 +1,6 @@
 "use client";
 
-import { cn } from "@/lib/utils";
+import { Chip } from "@/components/ui/chip";
 
 const OPTIONS = [
   { value: "", label: "All" },
@@ -18,24 +18,15 @@ export function StatusFilter({
 }) {
   return (
     <div className="flex flex-wrap gap-1.5">
-      {OPTIONS.map((opt) => {
-        const active = value === opt.value;
-        return (
-          <button
-            key={opt.value}
-            type="button"
-            onClick={() => onChange(opt.value)}
-            className={cn(
-              "rounded-full border px-3 py-1 text-xs transition-colors",
-              active
-                ? "border-blue-500 bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-300"
-                : "border-border text-muted-foreground hover:border-foreground/30"
-            )}
-          >
-            {opt.label}
-          </button>
-        );
-      })}
+      {OPTIONS.map((opt) => (
+        <Chip
+          key={opt.value}
+          selected={value === opt.value}
+          onClick={() => onChange(opt.value)}
+        >
+          {opt.label}
+        </Chip>
+      ))}
     </div>
   );
 }

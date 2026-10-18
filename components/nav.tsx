@@ -5,6 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/db";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { GraphMark } from "@/components/graph-mark";
 
 export function Nav() {
   const pathname = usePathname();
@@ -43,9 +44,10 @@ export function Nav() {
 
   return (
     <header className="border-b border-border">
-      <div className="mx-auto flex max-w-3xl items-center justify-between px-6 py-4">
-        <Link href="/" className="text-sm font-medium">
-          Opportunity graph
+      <div className="mx-auto flex max-w-4xl items-center justify-between px-6 py-4">
+        <Link href="/" className="flex items-center gap-2 text-sm font-medium">
+          <GraphMark />
+          <span>Opportunity graph</span>
         </Link>
         <nav className="flex items-center gap-6">
           <ThemeToggle />
@@ -53,13 +55,13 @@ export function Nav() {
             <>
               <Link
                 href="/dashboard"
-                className="text-sm text-muted-foreground hover:text-foreground"
+                className="text-sm text-muted-foreground hover:text-foreground focus-ring rounded"
               >
                 Matches
               </Link>
               <Link
                 href="/profile"
-                className="text-sm text-muted-foreground hover:text-foreground"
+                className="text-sm text-muted-foreground hover:text-foreground focus-ring rounded"
               >
                 Profile
               </Link>
@@ -68,7 +70,7 @@ export function Nav() {
               </span>
               <button
                 onClick={handleLogout}
-                className="text-sm text-muted-foreground hover:text-foreground"
+                className="focus-ring rounded text-sm text-muted-foreground hover:text-foreground"
               >
                 Log out
               </button>
@@ -76,7 +78,7 @@ export function Nav() {
           ) : (
             <Link
               href="/login"
-              className="text-sm text-muted-foreground hover:text-foreground"
+              className="text-sm text-muted-foreground hover:text-foreground focus-ring rounded"
             >
               Sign in
             </Link>

@@ -48,8 +48,8 @@ export default async function SourcesPage({
 
   return (
     <div>
-      <h1 className="text-2xl font-semibold">Source directory</h1>
-      <p className="mt-1 text-sm text-muted-foreground">
+      <h1 className="page-title">Source directory</h1>
+      <p className="page-lede">
         Every official directory the app ingests from.
       </p>
       <div className="mt-4">

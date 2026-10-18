@@ -61,7 +61,7 @@ export default function LoginPage() {
             <div className="mb-4 flex justify-center">
               <Mail className="h-10 w-10 text-muted-foreground" />
             </div>
-            <h1 className="mb-1 text-center text-lg font-medium">
+                <h1 className="mb-1 page-title">
               Check your email
             </h1>
             <p className="mb-5 text-center text-sm text-muted-foreground">
@@ -80,7 +80,7 @@ export default function LoginPage() {
           </>
         ) : (
           <>
-            <h1 className="mb-1 text-lg font-medium">
+            <h1 className="mb-1 page-title">
               {isSignUp ? "Create account" : "Sign in"}
             </h1>
             <p className="mb-5 text-sm text-muted-foreground">

@@ -27,8 +27,8 @@ const LINKS = [
 export default function AdminPage() {
   return (
     <div>
-      <h1 className="text-2xl font-semibold">Admin</h1>
-      <p className="mt-1 text-sm text-muted-foreground">
+      <h1 className="page-title">Admin</h1>
+      <p className="page-lede">
         Manage opportunities, sources, and ingestion.
       </p>
       <div className="mt-6 space-y-3">

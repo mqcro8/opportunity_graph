@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { inputClass } from "@/components/ui/field";
 import { Button } from "@/components/ui/button";
+import { Chip } from "@/components/ui/chip";
 import { cn } from "@/lib/utils";
 
 export interface TagNode {
@@ -167,19 +168,13 @@ export function TagPicker({
               const match = !q || node.name.toLowerCase().includes(q);
               if (!match) return null;
               return (
-                <button
+                <Chip
                   key={node.slug}
-                  type="button"
+                  selected={isSelected}
                   onClick={() => toggle(node.slug)}
-                  className={cn(
-                    "rounded-full border px-3 py-1 text-xs transition-colors",
-                    isSelected
-                      ? "border-blue-500 bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-300"
-                      : "border-border text-muted-foreground hover:border-foreground/30"
-                  )}
                 >
                   {node.name}
-                </button>
+                </Chip>
               );
             })}
             {byType[type].length === 0 && (

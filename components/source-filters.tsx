@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { SOURCE_TIERS } from "@/lib/constants";
 import { inputClass } from "@/components/ui/field";
+import { Chip } from "@/components/ui/chip";
 import { cn } from "@/lib/utils";
 
 export function SourceFilters() {
@@ -32,35 +33,22 @@ export function SourceFilters() {
     update("q", draft.trim());
   }
 
-  const chip = (active: boolean) =>
-    cn(
-      "rounded-full border px-3 py-1 text-xs transition-colors",
-      active
-        ? "border-blue-500 bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-300"
-        : "border-border text-muted-foreground hover:border-foreground/30"
-    );
-
   return (
     <div className="flex flex-wrap items-end gap-3">
       <div>
         <span className="mb-1 block text-sm font-medium">Tier</span>
         <div className="flex gap-1.5">
-          <button
-            type="button"
-            onClick={() => update("tier", "")}
-            className={chip(tier === "")}
-          >
+          <Chip selected={tier === ""} onClick={() => update("tier", "")}>
             All
-          </button>
+          </Chip>
           {SOURCE_TIERS.map((t) => (
-            <button
+            <Chip
               key={t}
-              type="button"
+              selected={tier === String(t)}
               onClick={() => update("tier", String(t))}
-              className={chip(tier === String(t))}
             >
               {t}
-            </button>
+            </Chip>
           ))}
         </div>
       </div>
